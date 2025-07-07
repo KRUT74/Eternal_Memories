@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server"
 import { v4 as uuidv4 } from "uuid"
 
-// Allow streaming responses up to 5 minutes
-export const maxDuration = 300
+// Allow streaming responses up to 60 seconds (the maximum Vercel allows)
+export const maxDuration = 60
 
 export async function POST(req: Request) {
   try {
