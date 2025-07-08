@@ -1,11 +1,11 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { Button } from "../components/ui/button"
 import { Input } from "../components/ui/input"
 import { User, Mail, Lock, UserPlus, LogIn, Sparkles } from "lucide-react"
+import { setUser } from "../../lib/redis"
 
 interface AuthFormProps {
   onAuth: (user: { id: string; name: string; email: string }) => void
@@ -48,12 +48,20 @@ export default function AuthForm({ onAuth }: AuthFormProps) {
 
       // Create user object
       const user = {
-        id: `user_${userEmail.replace(/[^a-zA-Z0-9]/g, "_")}`, // Simple, consistent ID
+        id: `user_${userEmail.replace(/[^a-zA-Z0-9]/g, "_")}`,
         name: formData.name || formData.email.split("@")[0],
         email: userEmail,
       }
 
-      // Store user data in localStorage
+      // Store user data in Redis AND localStorage (hybrid approach)
+      try {
+        await setUser(userEmail, user)
+        console.log("✅ User stored in Redis")
+      } catch (redisError) {
+        console.warn("⚠️ Redis storage failed, using localStorage fallback:", redisError)
+      }
+
+      // Always store in localStorage as backup
       localStorage.setItem("chat_user", JSON.stringify(user))
 
       console.log(`${isLogin ? "Signed in" : "Registered"} user:`, user)
@@ -168,6 +176,7 @@ export default function AuthForm({ onAuth }: AuthFormProps) {
         <p className="mt-1">Your eternal memories will persist across all dimensions</p>
         <p className="mt-1 text-purple-300">🔒 Your session ID will never change</p>
         <p className="mt-1 text-green-300">🤖 AI powered by your n8n workflow</p>
+        <p className="mt-1 text-blue-300">💾 Now with Redis persistence!</p>
       </div>
     </div>
   )

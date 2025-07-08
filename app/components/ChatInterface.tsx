@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useRef, useEffect } from "react"
 import ChatInput from "./ChatInput"
 import ChatMessage from "./ChatMessage"
@@ -9,6 +8,7 @@ import { v4 as uuidv4 } from "uuid"
 import type { WebhookStatus, Message } from "../lib/types"
 import { Button } from "./ui/button"
 import { RefreshCw } from "lucide-react"
+import { setMessages, getMessages } from "../../lib/redis"
 
 interface User {
   id: string
@@ -22,7 +22,7 @@ interface ChatInterfaceProps {
 }
 
 export default function ChatInterface({ sessionId, user }: ChatInterfaceProps) {
-  const [messages, setMessages] = useState<Message[]>([])
+  const [messages, setMessagesState] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
@@ -30,6 +30,47 @@ export default function ChatInterface({ sessionId, user }: ChatInterfaceProps) {
   const [files, setFiles] = useState<File[]>([])
   const [retryCount, setRetryCount] = useState(0)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Load messages from Redis on component mount
+  useEffect(() => {
+    const loadMessages = async () => {
+      try {
+        const savedMessages = await getMessages(sessionId)
+        if (savedMessages && Array.isArray(savedMessages)) {
+          setMessagesState(savedMessages)
+        }
+      } catch (error) {
+        console.warn("Failed to load messages from Redis, using localStorage fallback:", error)
+        // Fallback to localStorage
+        const localMessages = localStorage.getItem(`messages_${sessionId}`)
+        if (localMessages) {
+          try {
+            const parsed = JSON.parse(localMessages)
+            if (Array.isArray(parsed)) {
+              setMessagesState(parsed)
+            }
+          } catch (parseError) {
+            console.warn("Failed to parse local messages:", parseError)
+          }
+        }
+      }
+    }
+
+    loadMessages()
+  }, [sessionId])
+
+  // Save messages to Redis whenever messages change
+  const updateMessages = async (newMessages: Message[]) => {
+    setMessagesState(newMessages)
+
+    try {
+      await setMessages(sessionId, newMessages)
+      console.log("✅ Messages saved to Redis")
+    } catch (error) {
+      console.warn("⚠️ Failed to save to Redis, using localStorage fallback:", error)
+      localStorage.setItem(`messages_${sessionId}`, JSON.stringify(newMessages))
+    }
+  }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value)
@@ -61,7 +102,8 @@ export default function ChatInterface({ sessionId, user }: ChatInterfaceProps) {
     }
 
     // Add user message to the chat
-    setMessages((prev) => [...prev, userMessage])
+    const newMessages = [...messages, userMessage]
+    await updateMessages(newMessages)
 
     // Clear input and set loading state
     setInput("")
@@ -76,7 +118,7 @@ export default function ChatInterface({ sessionId, user }: ChatInterfaceProps) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          messages: [...messages, userMessage],
+          messages: newMessages,
           sessionId,
           requestId,
           user,
@@ -130,14 +172,13 @@ export default function ChatInterface({ sessionId, user }: ChatInterfaceProps) {
                 const parsedData = JSON.parse(data)
 
                 if (parsedData.type === "message") {
-                  setMessages((prev) => [
-                    ...prev,
-                    {
-                      id: parsedData.id,
-                      role: parsedData.role,
-                      content: parsedData.content,
-                    },
-                  ])
+                  const assistantMessage = {
+                    id: parsedData.id,
+                    role: parsedData.role,
+                    content: parsedData.content,
+                  }
+                  const updatedMessages = [...newMessages, assistantMessage]
+                  await updateMessages(updatedMessages)
                 } else if (parsedData.type === "status") {
                   setWebhookStatus((prev) => ({
                     ...prev,
@@ -195,6 +236,7 @@ export default function ChatInterface({ sessionId, user }: ChatInterfaceProps) {
           <div className="text-center text-white/70 mt-10">
             <p className="text-lg">Begin your eternal conversation...</p>
             <p className="text-sm mt-2 text-white/50">Your memories will be preserved across time and space ✨</p>
+            <p className="text-xs mt-1 text-blue-300">💾 Powered by Redis for lightning-fast memory</p>
           </div>
         ) : (
           messages.map((message) => (
@@ -222,7 +264,7 @@ export default function ChatInterface({ sessionId, user }: ChatInterfaceProps) {
                 variant="outline"
                 size="sm"
                 onClick={handleRetry}
-                className="ml-3 text-red-300 border-red-400/50 hover:bg-red-500/20"
+                className="ml-3 text-red-300 border-red-400/50 hover:bg-red-500/20 bg-transparent"
               >
                 <RefreshCw className="h-3 w-3 mr-1" />
                 Retry
