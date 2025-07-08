@@ -53,22 +53,26 @@ export default function AuthForm({ onAuth }: AuthFormProps) {
         email: userEmail,
       }
 
+      console.log(`🚀 Attempting to ${isLogin ? "sign in" : "register"} user:`, user)
+
       // Store user data in Redis AND localStorage (hybrid approach)
       try {
         await setUser(userEmail, user)
-        console.log("✅ User stored in Redis")
+        console.log("✅ User successfully stored in Redis!")
       } catch (redisError) {
         console.warn("⚠️ Redis storage failed, using localStorage fallback:", redisError)
       }
 
       // Always store in localStorage as backup
       localStorage.setItem("chat_user", JSON.stringify(user))
+      console.log("💾 User stored in localStorage as backup")
 
-      console.log(`${isLogin ? "Signed in" : "Registered"} user:`, user)
+      console.log(`🎉 ${isLogin ? "Sign in" : "Registration"} successful!`)
 
       // Call the onAuth callback
       onAuth(user)
     } catch (err) {
+      console.error("❌ Authentication failed:", err)
       setError(err instanceof Error ? err.message : "Authentication failed")
     } finally {
       setIsLoading(false)
@@ -177,6 +181,7 @@ export default function AuthForm({ onAuth }: AuthFormProps) {
         <p className="mt-1 text-purple-300">🔒 Your session ID will never change</p>
         <p className="mt-1 text-green-300">🤖 AI powered by your n8n workflow</p>
         <p className="mt-1 text-blue-300">💾 Now with Redis persistence!</p>
+        <p className="mt-1 text-yellow-300">🔍 Check browser console for logs!</p>
       </div>
     </div>
   )

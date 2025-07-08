@@ -34,13 +34,17 @@ export default function ChatInterface({ sessionId, user }: ChatInterfaceProps) {
   // Load messages from Redis on component mount
   useEffect(() => {
     const loadMessages = async () => {
+      console.log(`🔄 Loading messages for session: ${sessionId}`)
       try {
         const savedMessages = await getMessages(sessionId)
         if (savedMessages && Array.isArray(savedMessages)) {
           setMessagesState(savedMessages)
+          console.log(`✅ Loaded ${savedMessages.length} messages from Redis`)
+        } else {
+          console.log("📭 No messages found in Redis")
         }
       } catch (error) {
-        console.warn("Failed to load messages from Redis, using localStorage fallback:", error)
+        console.warn("⚠️ Failed to load messages from Redis, using localStorage fallback:", error)
         // Fallback to localStorage
         const localMessages = localStorage.getItem(`messages_${sessionId}`)
         if (localMessages) {
@@ -48,9 +52,10 @@ export default function ChatInterface({ sessionId, user }: ChatInterfaceProps) {
             const parsed = JSON.parse(localMessages)
             if (Array.isArray(parsed)) {
               setMessagesState(parsed)
+              console.log(`💾 Loaded ${parsed.length} messages from localStorage fallback`)
             }
           } catch (parseError) {
-            console.warn("Failed to parse local messages:", parseError)
+            console.warn("❌ Failed to parse local messages:", parseError)
           }
         }
       }
@@ -63,12 +68,14 @@ export default function ChatInterface({ sessionId, user }: ChatInterfaceProps) {
   const updateMessages = async (newMessages: Message[]) => {
     setMessagesState(newMessages)
 
+    console.log(`💾 Saving ${newMessages.length} messages to Redis...`)
     try {
       await setMessages(sessionId, newMessages)
-      console.log("✅ Messages saved to Redis")
+      console.log("✅ Messages successfully saved to Redis!")
     } catch (error) {
       console.warn("⚠️ Failed to save to Redis, using localStorage fallback:", error)
       localStorage.setItem(`messages_${sessionId}`, JSON.stringify(newMessages))
+      console.log("💾 Messages saved to localStorage as fallback")
     }
   }
 
@@ -78,6 +85,7 @@ export default function ChatInterface({ sessionId, user }: ChatInterfaceProps) {
 
   const handleRetry = () => {
     if (error) {
+      console.log("🔄 Retrying last message...")
       setError(null)
       setRetryCount((prev) => prev + 1)
       // Re-submit the last message
@@ -92,6 +100,8 @@ export default function ChatInterface({ sessionId, user }: ChatInterfaceProps) {
     e.preventDefault()
 
     if (!input.trim()) return
+
+    console.log(`🚀 Sending message: "${input.substring(0, 50)}${input.length > 50 ? "..." : ""}"`)
 
     // Generate a new request ID for this message
     const requestId = uuidv4()
@@ -111,6 +121,7 @@ export default function ChatInterface({ sessionId, user }: ChatInterfaceProps) {
     setError(null)
 
     try {
+      console.log("📡 Sending request to /api/chat...")
       // Send the message to our API
       const response = await fetch("/api/chat", {
         method: "POST",
@@ -127,8 +138,11 @@ export default function ChatInterface({ sessionId, user }: ChatInterfaceProps) {
 
       if (!response.ok) {
         const errorData = await response.json()
+        console.error("❌ API request failed:", errorData)
         throw new Error(errorData.error || "Failed to get response")
       }
+
+      console.log("✅ API request successful, processing stream...")
 
       // Get the request ID from the response headers
       const responseRequestId = response.headers.get("x-request-id")
@@ -165,6 +179,7 @@ export default function ChatInterface({ sessionId, user }: ChatInterfaceProps) {
             if (line.startsWith("data: ")) {
               const data = line.substring(6).trim()
               if (data === "[DONE]") {
+                console.log("🏁 Stream completed")
                 continue
               }
 
@@ -172,6 +187,7 @@ export default function ChatInterface({ sessionId, user }: ChatInterfaceProps) {
                 const parsedData = JSON.parse(data)
 
                 if (parsedData.type === "message") {
+                  console.log("💬 Received AI response")
                   const assistantMessage = {
                     id: parsedData.id,
                     role: parsedData.role,
@@ -180,6 +196,7 @@ export default function ChatInterface({ sessionId, user }: ChatInterfaceProps) {
                   const updatedMessages = [...newMessages, assistantMessage]
                   await updateMessages(updatedMessages)
                 } else if (parsedData.type === "status") {
+                  console.log(`📊 Status update: ${parsedData.status}`)
                   setWebhookStatus((prev) => ({
                     ...prev,
                     [requestId]: {
@@ -188,10 +205,11 @@ export default function ChatInterface({ sessionId, user }: ChatInterfaceProps) {
                     },
                   }))
                 } else if (parsedData.type === "error") {
+                  console.error("❌ Stream error:", parsedData.error)
                   setError(new Error(parsedData.error))
                 }
               } catch (e) {
-                console.error("Error parsing SSE data:", e, "Data was:", data)
+                console.error("❌ Error parsing SSE data:", e, "Data was:", data)
               }
             }
           }
@@ -206,8 +224,9 @@ export default function ChatInterface({ sessionId, user }: ChatInterfaceProps) {
 
       // Reset retry count on success
       setRetryCount(0)
+      console.log("🎉 Message exchange completed successfully!")
     } catch (err) {
-      console.error("Error sending message:", err)
+      console.error("❌ Error sending message:", err)
       setError(err instanceof Error ? err : new Error("An unknown error occurred"))
 
       setWebhookStatus((prev) => ({
@@ -237,6 +256,7 @@ export default function ChatInterface({ sessionId, user }: ChatInterfaceProps) {
             <p className="text-lg">Begin your eternal conversation...</p>
             <p className="text-sm mt-2 text-white/50">Your memories will be preserved across time and space ✨</p>
             <p className="text-xs mt-1 text-blue-300">💾 Powered by Redis for lightning-fast memory</p>
+            <p className="text-xs mt-1 text-yellow-300">🔍 Check browser console for detailed logs</p>
           </div>
         ) : (
           messages.map((message) => (
