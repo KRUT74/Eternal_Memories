@@ -2,7 +2,6 @@
 
 import type React from "react"
 import { useState } from "react"
-import { Sparkles } from "lucide-react"
 import { Button } from "./ui/button"
 import { Input } from "./ui/input"
 
@@ -34,18 +33,18 @@ export default function WelcomeForm({ onStarted }: { onStarted: () => void }) {
   }
 
   return (
-    <div className="glass-card p-8 rounded-xl max-w-md mx-auto">
-      <div className="flex items-center justify-center mb-4">
-        <Sparkles className="h-8 w-8 mr-2 text-purple-400" aria-hidden="true" />
-        <h2 className="text-2xl font-bold text-white">Enter the Cosmos</h2>
-      </div>
-      <p className="text-sm text-white/70 text-center mb-6">
-        A companion that remembers what matters to you, across every conversation.
+    <div className="mx-auto max-w-md rounded-3xl border border-line bg-surface/90 p-8 shadow-2xl shadow-black/30">
+      <h2 className="font-serif text-4xl leading-tight text-balance">
+        Every conversation <i className="text-star">leaves a star.</i>
+      </h2>
+      <p className="mt-3 text-muted">
+        Talk or type with a companion that remembers the people, plans and things you care about, across every
+        conversation.
       </p>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="mt-8 space-y-4">
         <div>
-          <label htmlFor="name" className="block text-sm font-medium text-white/80 mb-1">
+          <label htmlFor="name" className="mb-1.5 block text-sm font-medium">
             What should I call you?
           </label>
           <Input
@@ -56,24 +55,24 @@ export default function WelcomeForm({ onStarted }: { onStarted: () => void }) {
             placeholder="Your first name"
             autoComplete="given-name"
             maxLength={40}
-            className="bg-white/10 border-white/20 text-white placeholder:text-white/50"
+            className="h-11 bg-[#0e1426] placeholder:text-[#7a84a3]"
             required
           />
         </div>
 
         {error && (
-          <div className="text-red-200 text-sm bg-red-500/20 p-2 rounded border border-red-500/30" role="alert">
+          <div className="rounded-lg border border-danger/40 bg-danger/10 p-2 text-sm text-[#fbd0d0]" role="alert">
             {error}
           </div>
         )}
 
-        <Button type="submit" disabled={isLoading || !name.trim()} className="w-full bg-purple-600 hover:bg-purple-700 text-white">
-          {isLoading ? "Opening the cosmos..." : "Start talking"}
+        <Button type="submit" disabled={isLoading || !name.trim()} className="h-11 w-full text-base">
+          {isLoading ? "Opening your sky…" : "Begin"}
         </Button>
       </form>
 
-      <p className="mt-6 text-xs text-white/60 text-center">
-        No account needed. Your memories stay private to this browser, and you can make me forget them at any time.
+      <p className="mt-6 font-mono text-[11px] leading-relaxed text-muted">
+        no account needed · memories stay private to this browser · forget anything, any time
       </p>
     </div>
   )

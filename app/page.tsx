@@ -1,20 +1,26 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import { Sparkles } from "lucide-react"
 import ChatInterface from "./components/ChatInterface"
 import WelcomeForm from "./components/WelcomeForm"
 import UserProfile from "./components/UserProfile"
-import CosmicParticles from "./components/CosmicParticles"
 import MemoryPanel from "./components/MemoryPanel"
-import type { SessionInfo } from "./lib/types"
+import { SHAPING_MEMORIES, type SessionInfo } from "./lib/types"
 
 type SessionState = { status: "loading" } | { status: "anonymous" } | { status: "active"; session: SessionInfo }
+
+const EMPTY = new Set<string>()
 
 export default function Home() {
   const [state, setState] = useState<SessionState>({ status: "loading" })
   const [memoryVersion, setMemoryVersion] = useState(0)
-  // Bumped on each new session so the chat remounts and reloads its history.
+  // Bumped on each new session so the chat and panel remount and reload.
   const [sessionVersion, setSessionVersion] = useState(0)
+  const [memoryCount, setMemoryCount] = useState(0)
+  const [shapingIds, setShapingIds] = useState<Set<string>>(EMPTY)
+  const [newIds, setNewIds] = useState<Set<string>>(EMPTY)
+  const [drawerOpen, setDrawerOpen] = useState(false)
 
   const loadSession = useCallback(async () => {
     try {
@@ -48,40 +54,65 @@ export default function Home() {
     void loadSession()
   }, [loadSession])
 
+  useEffect(() => {
+    if (!drawerOpen) return
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setDrawerOpen(false)
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [drawerOpen])
+
   const signedOut = () => {
     setState({ status: "anonymous" })
     setSessionVersion((v) => v + 1)
+    setShapingIds(EMPTY)
+    setNewIds(EMPTY)
   }
 
-  const messageSent = () =>
+  const messageSent = () => {
+    setNewIds(EMPTY)
     setState((s) =>
-      s.status === "active" ? { ...s, session: { ...s.session, remainingToday: Math.max(0, s.session.remainingToday - 1) } } : s,
-    )
-
-  if (state.status === "loading") {
-    return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-4 relative">
-        <CosmicParticles />
-        <div className="glass-card p-8 rounded-2xl" role="status">
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-400 mx-auto"></div>
-          <p className="mt-4 text-white/80">Connecting to the cosmos...</p>
-        </div>
-      </main>
+      s.status === "active"
+        ? { ...s, session: { ...s.session, remainingToday: Math.max(0, s.session.remainingToday - 1) } }
+        : s,
     )
   }
+
+  const onCountChange = useCallback((count: number) => setMemoryCount(count), [])
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-4 md:p-24 relative">
-      <CosmicParticles />
+    <div className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col px-4 sm:px-6">
+      <header className="flex items-center justify-between gap-4 py-5">
+        <h1 className="font-serif text-[28px] leading-none sm:text-3xl">
+          Eternal <i className="text-star">Memories</i>
+        </h1>
+        {state.status === "active" && (
+          <div className="flex items-center gap-2">
+            <span className="hidden font-mono text-xs text-muted sm:inline">
+              {memoryCount} {memoryCount === 1 ? "memory" : "memories"}
+            </span>
+            <button
+              type="button"
+              onClick={() => setDrawerOpen(true)}
+              aria-expanded={drawerOpen}
+              aria-controls="constellation-panel"
+              className="flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 font-mono text-xs text-star md:hidden"
+            >
+              <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+              {memoryCount}
+              <span className="sr-only">memories, open constellation</span>
+            </button>
+            <UserProfile name={state.session.name} onForgotten={signedOut} />
+          </div>
+        )}
+      </header>
 
-      <div className="z-10 w-full max-w-5xl relative">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-4xl md:text-5xl font-bold cosmic-title">ETERNAL MEMORIES AI</h1>
-          {state.status === "active" && <UserProfile name={state.session.name} onForgotten={signedOut} />}
-        </div>
-
-        {state.status === "anonymous" ? (
-          <div className="glass-card-strong rounded-2xl p-2 max-w-3xl mx-auto">
+      <main className="flex-1 pb-6">
+        {state.status === "loading" ? (
+          <p className="mt-24 text-center text-muted" role="status">
+            Opening your sky…
+          </p>
+        ) : state.status === "anonymous" ? (
+          <div className="mt-6 sm:mt-16">
             <WelcomeForm
               onStarted={() => {
                 setSessionVersion((v) => v + 1)
@@ -90,34 +121,42 @@ export default function Home() {
             />
           </div>
         ) : (
-          <>
-            <div className="mb-6 text-sm text-white/70 glass-card rounded-lg p-4">
-              <div className="flex items-center space-x-2">
-                <span>Welcome back,</span>
-                <span className="font-medium text-white">{state.session.name}</span>
-                <span aria-hidden="true">✨</span>
-              </div>
-            </div>
+          <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_21rem]">
+            <section aria-label="Conversation" className="rounded-3xl border border-line bg-surface/90 p-3 sm:p-5">
+              <ChatInterface
+                key={sessionVersion}
+                remainingToday={state.session.remainingToday}
+                onMessageSent={messageSent}
+                onRecalled={(memories) => setShapingIds(new Set(memories.slice(0, SHAPING_MEMORIES).map((m) => m.id)))}
+                onRemembered={(memories) => {
+                  setNewIds(new Set(memories.map((m) => m.id)))
+                  setMemoryVersion((v) => v + 1)
+                }}
+                onSessionExpired={signedOut}
+              />
+            </section>
 
-            <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_18rem]">
-              <div className="glass-card-strong rounded-2xl p-2">
-                <ChatInterface
-                  key={sessionVersion}
-                  remainingToday={state.session.remainingToday}
-                  onMessageSent={messageSent}
-                  onRemembered={() => setMemoryVersion((v) => v + 1)}
-                  onSessionExpired={signedOut}
-                />
-              </div>
-              <MemoryPanel key={sessionVersion} refreshKey={memoryVersion} />
-            </div>
-          </>
+            {drawerOpen && (
+              <div className="fixed inset-0 z-30 bg-black/60 md:hidden" aria-hidden="true" onClick={() => setDrawerOpen(false)} />
+            )}
+            <aside
+              id="constellation-panel"
+              className={`fixed inset-y-0 right-0 z-40 w-[min(22rem,90vw)] overflow-y-auto border-l border-line bg-surface p-5 transition-transform duration-300 motion-reduce:transition-none md:static md:z-auto md:w-auto md:translate-x-0 md:rounded-3xl md:border md:bg-surface/90 md:visible ${
+                drawerOpen ? "translate-x-0" : "invisible translate-x-full"
+              }`}
+            >
+              <MemoryPanel
+                key={sessionVersion}
+                refreshKey={memoryVersion}
+                shapingIds={shapingIds}
+                newIds={newIds}
+                onCountChange={onCountChange}
+                onClose={() => setDrawerOpen(false)}
+              />
+            </aside>
+          </div>
         )}
-      </div>
-
-      <footer className="text-center text-white/60 text-xs mt-8">
-        <p>Where memories transcend time and space ✨</p>
-      </footer>
-    </main>
+      </main>
+    </div>
   )
 }

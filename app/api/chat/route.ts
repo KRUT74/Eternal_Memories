@@ -15,7 +15,11 @@ const MAX_REPLY_TOKENS = 1024
 
 const RequestSchema = z.object({
   message: z.string().trim().min(1).max(2000),
+  mode: z.enum(["text", "voice"]).default("text"),
 })
+
+const VOICE_NOTE =
+  "This reply will be spoken aloud in a voice conversation: answer in one to three short, natural sentences, with no Markdown, lists or emoji."
 
 const SYSTEM_PROMPT = `You are Eternal Memories, a warm and thoughtful companion who remembers the people you talk with across conversations.
 
@@ -24,6 +28,7 @@ Before each reply you may be given a short list of things you remember about thi
 Keep replies conversational and reasonably short unless the person asks for depth. Use Markdown only when it genuinely helps.`
 
 export type ChatEvent =
+  | { type: "recalled"; memories: { id: string; content: string; similarity: number }[] }
   | { type: "text"; text: string }
   | { type: "remembered"; memories: { id: string; content: string }[] }
   | { type: "error"; error: string }
@@ -38,7 +43,7 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return Response.json({ error: "Messages can be up to 2,000 characters." }, { status: 400 })
   }
-  const { message } = parsed.data
+  const { message, mode } = parsed.data
 
   const ip = ipHash(req)
   const check = await checkChatAllowed(userId, ip)
@@ -54,17 +59,22 @@ export async function POST(req: Request) {
       try {
         const [history, memories] = await Promise.all([recentMessages(userId, HISTORY_TURNS), recall(userId, message)])
         await saveMessage(userId, "user", message)
+        send({
+          type: "recalled",
+          memories: memories.map(({ id, content, similarity }) => ({ id, content, similarity })),
+        })
 
         const memoryNote = memories.length
           ? `What you remember about ${userName}:\n${memories.map((m) => `- ${m.content}`).join("\n")}`
           : `You don't remember anything relevant about ${userName} yet.`
+        const systemNote = mode === "voice" ? `${memoryNote}\n\n${VOICE_NOTE}` : memoryNote
 
         const messages: Anthropic.Beta.BetaMessageParam[] = [
           ...history.map((m) => ({ role: m.role, content: m.content })),
           { role: "user", content: message },
           // Mid-conversation system message: keeps the top-level system prompt
           // stable and marks recalled memories as operator context, not user text.
-          { role: "system", content: memoryNote },
+          { role: "system", content: systemNote },
         ]
 
         const response = anthropic().beta.messages.stream({

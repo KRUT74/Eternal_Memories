@@ -27,36 +27,37 @@ export default function UserProfile({ name, onForgotten }: UserProfileProps) {
     <div className="relative">
       <Button
         variant="outline"
+        size="sm"
         onClick={() => setShowDropdown(!showDropdown)}
         aria-expanded={showDropdown}
         aria-haspopup="menu"
         aria-label={`Account menu for ${name}`}
-        className="flex items-center space-x-2"
+        className="flex items-center gap-2 bg-transparent font-mono text-xs"
       >
-        <UserIcon className="h-4 w-4" />
-        <span className="hidden md:inline">{name}</span>
+        <UserIcon className="h-3.5 w-3.5" aria-hidden="true" />
+        <span className="hidden sm:inline">{name.toLowerCase()}</span>
       </Button>
 
       {showDropdown && (
         <div
           role="menu"
-          className="absolute right-0 mt-2 w-72 bg-slate-900/80 backdrop-blur-md rounded-lg shadow-xl border border-white/20 z-50"
+          className="absolute right-0 z-50 mt-2 w-72 rounded-xl border border-line bg-surface shadow-2xl shadow-black/40"
         >
-          <div className="p-4 border-b border-white/20">
-            <p className="font-medium text-white">{name}</p>
-            <p className="text-xs text-white/60 mt-1">Your memories are private to this browser.</p>
+          <div className="border-b border-line p-4">
+            <p className="font-medium">{name}</p>
+            <p className="mt-1 text-xs text-muted">Your memories are private to this browser.</p>
           </div>
           <div className="p-2">
             <button
               role="menuitem"
               onClick={forgetEverything}
-              className="flex items-center w-full px-3 py-2 text-sm text-red-300 hover:text-red-200 hover:bg-red-500/10 rounded"
+              className="flex w-full items-center rounded-lg px-3 py-2 text-sm text-danger hover:bg-danger/10"
             >
               <Trash2 className="h-4 w-4 mr-2" />
               Forget everything and start over
             </button>
             {error && (
-              <p className="px-3 pb-2 text-xs text-red-200" role="alert">
+              <p className="px-3 pb-2 text-xs text-danger" role="alert">
                 {error}
               </p>
             )}
