@@ -6,40 +6,52 @@ import { RefreshCw } from "lucide-react"
 import ChatInput from "./ChatInput"
 import ChatMessage from "./ChatMessage"
 import { Button } from "./ui/button"
-import type { Message, User } from "../lib/types"
+import type { MemoryItem, Message, User } from "../lib/types"
 
 interface ChatInterfaceProps {
   sessionId: string
   user: User
+  onRemembered: (memories: MemoryItem[]) => void
 }
 
-// Chat history lives in localStorage until the Phase 2 memory backend lands.
-const storageKey = (sessionId: string) => `messages_${sessionId}`
+type ChatEvent =
+  | { type: "text"; text: string }
+  | { type: "remembered"; memories: MemoryItem[] }
+  | { type: "error"; error: string }
+  | { type: "done" }
 
-function loadMessages(sessionId: string): Message[] {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(storageKey(sessionId)) ?? "[]")
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
-  }
-}
-
-export default function ChatInterface({ sessionId, user }: ChatInterfaceProps) {
-  // Mounted client-side only (keyed by sessionId), so reading localStorage here is safe.
-  const [messages, setMessages] = useState<Message[]>(() => loadMessages(sessionId))
+export default function ChatInterface({ sessionId, user, onRemembered }: ChatInterfaceProps) {
+  const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [historyLoaded, setHistoryLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch(`/api/history?userId=${encodeURIComponent(sessionId)}`)
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("Could not load your conversation"))))
+      .then((data: { messages: Message[] }) => {
+        if (!cancelled) setMessages(data.messages)
+      })
+      .catch((err: Error) => {
+        if (!cancelled) setError(err.message)
+      })
+      .finally(() => {
+        if (!cancelled) setHistoryLoaded(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [sessionId])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
-  const updateMessages = (next: Message[]) => {
-    setMessages(next)
-    localStorage.setItem(storageKey(sessionId), JSON.stringify(next))
+  const updateAssistant = (id: string, update: (message: Message) => Message) => {
+    setMessages((prev) => prev.map((m) => (m.id === id ? update(m) : m)))
   }
 
   const handleRetry = () => {
@@ -50,10 +62,15 @@ export default function ChatInterface({ sessionId, user }: ChatInterfaceProps) {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (!input.trim()) return
+    const text = input.trim()
+    if (!text || isLoading) return
 
-    const newMessages = [...messages, { id: crypto.randomUUID(), role: "user" as const, content: input }]
-    updateMessages(newMessages)
+    const assistantId = crypto.randomUUID()
+    setMessages((prev) => [
+      ...prev,
+      { id: crypto.randomUUID(), role: "user", content: text },
+      { id: assistantId, role: "assistant", content: "" },
+    ])
     setInput("")
     setIsLoading(true)
     setError(null)
@@ -62,31 +79,66 @@ export default function ChatInterface({ sessionId, user }: ChatInterfaceProps) {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: newMessages, sessionId, user }),
+        body: JSON.stringify({ userId: sessionId, userName: user.name, message: text }),
       })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || "Failed to get response")
+      if (!response.ok || !response.body) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data.error || "Failed to get a response")
+      }
 
-      updateMessages([...newMessages, { id: crypto.randomUUID(), role: "assistant", content: data.content }])
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ""
+
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+
+        const events = buffer.split("\n\n")
+        buffer = events.pop() ?? ""
+        for (const raw of events) {
+          if (!raw.startsWith("data: ")) continue
+          const event = JSON.parse(raw.slice(6)) as ChatEvent
+          if (event.type === "text") {
+            updateAssistant(assistantId, (m) => ({ ...m, content: m.content + event.text }))
+          } else if (event.type === "remembered") {
+            updateAssistant(assistantId, (m) => ({ ...m, remembered: event.memories }))
+            onRemembered(event.memories)
+          } else if (event.type === "error") {
+            throw new Error(event.error)
+          }
+        }
+      }
     } catch (err) {
+      // Drop an empty assistant bubble so the error stands on its own.
+      setMessages((prev) => prev.filter((m) => m.id !== assistantId || m.content))
       setError(err instanceof Error ? err.message : "Something went wrong")
     } finally {
       setIsLoading(false)
     }
   }
 
+  const waitingForFirstToken = isLoading && messages.at(-1)?.content === ""
+
   return (
     <div className="flex flex-col h-[70vh] glass-card rounded-xl overflow-hidden">
       <div className="flex-1 overflow-y-auto p-6 space-y-4" aria-live="polite">
-        {messages.length === 0 ? (
+        {!historyLoaded ? (
+          <p className="text-center text-white/70 mt-10" role="status">
+            Gathering your memories...
+          </p>
+        ) : messages.length === 0 ? (
           <div className="text-center text-white/70 mt-10">
             <p className="text-lg">Begin your eternal conversation...</p>
-            <p className="text-sm mt-2 text-white/60">Your memories will be preserved across time and space ✨</p>
+            <p className="text-sm mt-2 text-white/60">Tell me about yourself, and I&apos;ll remember it next time ✨</p>
           </div>
         ) : (
-          messages.map((message) => <ChatMessage key={message.id} message={message} />)
+          messages
+            .filter((message) => message.content || !waitingForFirstToken)
+            .map((message) => <ChatMessage key={message.id} message={message} />)
         )}
-        {isLoading && (
+        {waitingForFirstToken && (
           <div className="flex items-center space-x-3 text-white/70" role="status">
             <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-purple-400"></div>
             <span>Consulting the cosmic memory...</span>
@@ -112,7 +164,12 @@ export default function ChatInterface({ sessionId, user }: ChatInterfaceProps) {
       </div>
 
       <div className="border-t border-white/20 p-4 bg-white/5">
-        <ChatInput input={input} handleInputChange={(e) => setInput(e.target.value)} handleSubmit={handleSubmit} isLoading={isLoading} />
+        <ChatInput
+          input={input}
+          handleInputChange={(e) => setInput(e.target.value)}
+          handleSubmit={handleSubmit}
+          isLoading={isLoading || !historyLoaded}
+        />
       </div>
     </div>
   )

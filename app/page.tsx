@@ -1,10 +1,11 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import ChatInterface from "./components/ChatInterface"
 import AuthForm from "./components/AuthForm"
 import UserProfile from "./components/UserProfile"
 import CosmicParticles from "./components/CosmicParticles"
+import MemoryPanel from "./components/MemoryPanel"
 import { getOrCreateSessionId } from "./lib/utils"
 import { useStoredUser, setStoredUser } from "./lib/storedUser"
 
@@ -12,6 +13,7 @@ export default function Home() {
   const user = useStoredUser()
   const isLoading = user === undefined
   const sessionId = useMemo(() => (user ? getOrCreateSessionId(user) : ""), [user])
+  const [memoryVersion, setMemoryVersion] = useState(0)
 
   if (isLoading) {
     return (
@@ -29,14 +31,14 @@ export default function Home() {
     <main className="flex min-h-screen flex-col items-center justify-between p-4 md:p-24 relative">
       <CosmicParticles />
 
-      <div className="z-10 w-full max-w-3xl relative">
+      <div className="z-10 w-full max-w-5xl relative">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-4xl md:text-5xl font-bold cosmic-title">ETERNAL MEMORIES AI</h1>
           {user && <UserProfile user={user} onLogout={() => setStoredUser(null)} />}
         </div>
 
         {!user ? (
-          <div className="glass-card-strong rounded-2xl p-2">
+          <div className="glass-card-strong rounded-2xl p-2 max-w-3xl mx-auto">
             <AuthForm onAuth={setStoredUser} />
           </div>
         ) : (
@@ -49,8 +51,16 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="glass-card-strong rounded-2xl p-2">
-              <ChatInterface key={sessionId} sessionId={sessionId} user={user} />
+            <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_18rem]">
+              <div className="glass-card-strong rounded-2xl p-2">
+                <ChatInterface
+                  key={sessionId}
+                  sessionId={sessionId}
+                  user={user}
+                  onRemembered={() => setMemoryVersion((v) => v + 1)}
+                />
+              </div>
+              <MemoryPanel sessionId={sessionId} refreshKey={memoryVersion} />
             </div>
           </>
         )}
