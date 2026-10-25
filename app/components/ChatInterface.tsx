@@ -5,7 +5,9 @@ import { useEffect, useRef, useState } from "react"
 import { RefreshCw } from "lucide-react"
 import ChatInput from "./ChatInput"
 import ChatMessage from "./ChatMessage"
+import VoiceBar from "./VoiceBar"
 import { useChat, type ChatCallbacks } from "../lib/useChat"
+import { useVoiceConversation } from "../lib/voice/useVoiceConversation"
 
 interface ChatInterfaceProps extends ChatCallbacks {
   remainingToday: number
@@ -13,6 +15,7 @@ interface ChatInterfaceProps extends ChatCallbacks {
 
 export default function ChatInterface({ remainingToday, ...callbacks }: ChatInterfaceProps) {
   const chat = useChat(callbacks)
+  const voice = useVoiceConversation({ send: chat.send })
   const [input, setInput] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const { messages, historyLoaded, isSending, error } = chat
@@ -83,12 +86,25 @@ export default function ChatInterface({ remainingToday, ...callbacks }: ChatInte
       </div>
 
       <div className="pt-2">
-        <ChatInput
-          input={input}
-          onInputChange={setInput}
-          onSubmit={handleSubmit}
-          disabled={isSending || !historyLoaded || outOfMessages}
-        />
+        {voice.status !== "idle" ? (
+          <VoiceBar status={voice.status} partial={voice.partial} onEnd={() => voice.stop()} />
+        ) : (
+          <ChatInput
+            input={input}
+            onInputChange={setInput}
+            onSubmit={handleSubmit}
+            disabled={isSending || !historyLoaded || outOfMessages}
+            onStartVoice={voice.supported ? () => void voice.start() : undefined}
+          />
+        )}
+        {voice.error && (
+          <p className="mt-2 flex items-start gap-2 text-xs text-danger" role="alert">
+            <span className="flex-1">{voice.error}</span>
+            <button type="button" onClick={voice.clearError} className="underline">
+              Dismiss
+            </button>
+          </p>
+        )}
         <p className="mt-2 font-mono text-[11px] text-muted" aria-live="polite">
           {outOfMessages
             ? "demo · today's messages are used up. Come back tomorrow, I'll still remember you."

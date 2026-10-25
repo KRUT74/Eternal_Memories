@@ -111,17 +111,21 @@ export async function extractAndStore(
   const stored: Memory[] = []
 
   for (const [i, fact] of facts.entries()) {
-    const { data: nearest, error: matchError } = await supabase().rpc("match_memories", {
-      p_user_id: userId,
-      query_embedding: embeddings[i],
-      match_count: 1,
-      min_similarity: DUPLICATE_SIMILARITY,
-    })
-    if (matchError) throw matchError
-    if ((nearest as MatchedMemory[]).length > 0) continue
+    const replacesId = fact.replaces_id && knownIds.has(fact.replaces_id) ? fact.replaces_id : null
 
-    if (fact.replaces_id && knownIds.has(fact.replaces_id)) {
-      await forgetMemory(userId, fact.replaces_id)
+    if (replacesId) {
+      // A correction ("Porto, not Lisbon") embeds almost identically to the fact it
+      // replaces, so it must skip the near-duplicate check below.
+      await forgetMemory(userId, replacesId)
+    } else {
+      const { data: nearest, error: matchError } = await supabase().rpc("match_memories", {
+        p_user_id: userId,
+        query_embedding: embeddings[i],
+        match_count: 1,
+        min_similarity: DUPLICATE_SIMILARITY,
+      })
+      if (matchError) throw matchError
+      if ((nearest as MatchedMemory[]).length > 0) continue
     }
 
     const { data, error } = await supabase()

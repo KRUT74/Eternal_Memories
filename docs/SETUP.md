@@ -21,6 +21,7 @@ Open **SQL Editor** → **Create a new snippet**, and run each file in
 
 1. `20261025000000_memory.sql`: `messages`, `memories` and the memory search function
 2. `20261026000000_usage_limits.sql`: the usage log behind rate limits and the daily budget
+3. `20261027000000_voice_usage.sql`: logs voice costs and adds the per-visitor spend cap
 
 Each should report "Success. No rows returned."
 
@@ -53,7 +54,17 @@ CLI alternative: `npx supabase@2.122.0 login`, then
 3. **Settings → API keys** → **Create key** in that workspace → `ANTHROPIC_API_KEY`.
 4. **Billing**: add a small amount of credit if the account has none.
 
-## 6. Local env file
+## 6. ElevenLabs (voice)
+
+1. Sign in at <https://elevenlabs.io> and open **Developers → API Keys**.
+2. Create a key with access to **Text to Speech** and **Speech to Text** only, and set a usage
+   limit on it if the option is offered → `ELEVENLABS_API_KEY`.
+3. Pick the companion's voice in the voice library and copy its ID → `ELEVENLABS_VOICE_ID`.
+
+Voice costs roughly $0.02 per spoken turn (Flash v2.5 at $0.05 per 1K characters plus Scribe
+realtime at $0.39 per hour). The app counts it against the same daily budgets as chat.
+
+## 7. Local env file
 
 ```bash
 cp .env.example .env.local
@@ -61,10 +72,10 @@ cp .env.example .env.local
 
 Fill in the values in `.env.local`. For `SESSION_SECRET` (signs visitor cookies), use
 another `openssl rand -hex 32`. The optional `DEMO_*` settings tune the demo limits; the
-defaults are a $2 rolling-24-hour budget, 5 messages a minute and 40 a day per visitor,
-100 messages and 5 new sessions a day per network.
+defaults are a $2 rolling-24-hour budget for the whole demo, $0.30 per visitor, 5 messages a
+minute and 40 a day per visitor, and 100 messages and 5 new sessions a day per network.
 
-## 7. Check the embedding function
+## 8. Check the embedding function
 
 ```bash
 curl -s -X POST "https://<project ref>.supabase.co/functions/v1/embed" -H "Content-Type: application/json" -H "apikey: <SUPABASE_SECRET_KEY>" -H "x-embed-secret: <secret from step 3>" -d '{"input":"hello"}' | head -c 120
