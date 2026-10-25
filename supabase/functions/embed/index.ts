@@ -1,6 +1,7 @@
 // Turns text into 384-dim gte-small embeddings using Supabase's built-in model.
 // POST { "input": string | string[] }  →  { "embeddings": number[][] }
-// Callers must send the shared secret in the x-embed-secret header.
+// Callers send the project secret key in the apikey header (Supabase's gateway requires it)
+// and the shared secret in the x-embed-secret header.
 
 const session = new Supabase.ai.Session("gte-small")
 const MAX_INPUTS = 32

@@ -416,6 +416,7 @@ enabled = true
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":180,\"commaStyle\":\"trailing\"}"
 
 # The embed function checks its own shared secret (x-embed-secret header),
-# because Supabase's new sb_secret_ keys are not JWTs.
+# because Supabase's new sb_secret_ keys are not JWTs. Callers still send the
+# secret key in the apikey header for the gateway.
 [functions.embed]
 verify_jwt = false

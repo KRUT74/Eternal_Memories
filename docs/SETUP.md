@@ -22,27 +22,24 @@ You should see `messages` and `memories` under **Table Editor**.
 
 ## 3. Shared secret for the embedding function
 
-Generate a random secret and keep it for steps 4 and 6:
+Generate a random secret and keep it for steps 4 and 6. Use the 64-character code this
+prints, not the command itself:
 
 ```bash
 openssl rand -hex 32
 ```
 
-## 4. Deploy the embedding function
+## 4. Deploy the embedding function (dashboard)
 
-From the project folder:
+1. **Edge Functions → Secrets**: add `EMBED_FUNCTION_SECRET` with the value from step 3.
+2. **Edge Functions → Deploy a new function → Via Editor**: name it `embed`, replace *all*
+   the sample code with `supabase/functions/embed/index.ts`, and click **Deploy**.
+3. In the function's **Details**, turn off **Verify JWT**. The new `sb_secret_` keys are not
+   JWTs, so the function checks its own `x-embed-secret` header instead.
 
-```bash
-npx supabase@2.122.0 login
-```
-
-```bash
-npx supabase@2.122.0 secrets set EMBED_FUNCTION_SECRET=<secret from step 3> --project-ref <project ref>
-```
-
-```bash
-npx supabase@2.122.0 functions deploy embed --project-ref <project ref>
-```
+CLI alternative: `npx supabase@2.122.0 login`, then
+`npx supabase@2.122.0 secrets set EMBED_FUNCTION_SECRET=... --project-ref <ref>` and
+`npx supabase@2.122.0 functions deploy embed --project-ref <ref>`.
 
 ## 5. Anthropic API key
 
@@ -63,7 +60,7 @@ Fill in the four values in `.env.local`.
 ## 7. Check the embedding function
 
 ```bash
-curl -s -X POST "https://<project ref>.supabase.co/functions/v1/embed" -H "Content-Type: application/json" -H "x-embed-secret: <secret from step 3>" -d '{"input":"hello"}' | head -c 120
+curl -s -X POST "https://<project ref>.supabase.co/functions/v1/embed" -H "Content-Type: application/json" -H "apikey: <SUPABASE_SECRET_KEY>" -H "x-embed-secret: <secret from step 3>" -d '{"input":"hello"}' | head -c 120
 ```
 
 You should see `{"embeddings":[[` followed by numbers.
