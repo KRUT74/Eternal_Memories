@@ -105,6 +105,7 @@ export default function MemoryPanel({ refreshKey, shapingIds, newIds, onCountCha
               return (
                 <li
                   key={memory.id}
+                  data-active={active || undefined}
                   onMouseEnter={() => setActiveId(memory.id)}
                   onMouseLeave={() => setActiveId(null)}
                   className={`flex items-start gap-2.5 rounded-xl border px-3 py-2.5 text-sm transition-colors ${

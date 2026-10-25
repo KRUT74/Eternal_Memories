@@ -20,10 +20,5 @@ export interface Message {
   remembered?: MemoryItem[]
 }
 
-export interface SessionInfo {
-  name: string
-  remainingToday: number
-}
-
 /** How many recalled memories count as having "shaped" a reply in the UI. */
 export const SHAPING_MEMORIES = 3

@@ -10,7 +10,8 @@ import { useChat, type ChatCallbacks } from "../lib/useChat"
 import { useVoiceConversation } from "../lib/voice/useVoiceConversation"
 
 interface ChatInterfaceProps extends ChatCallbacks {
-  remainingToday: number
+  /** Messages left today, or null while still loading. */
+  remainingToday: number | null
 }
 
 export default function ChatInterface({ remainingToday, ...callbacks }: ChatInterfaceProps) {
@@ -38,7 +39,7 @@ export default function ChatInterface({ remainingToday, ...callbacks }: ChatInte
   }
 
   const waitingForFirstToken = isSending && messages.at(-1)?.content === ""
-  const outOfMessages = remainingToday <= 0
+  const outOfMessages = remainingToday !== null && remainingToday <= 0
 
   return (
     <div className="flex h-[calc(100dvh-9rem)] min-h-[28rem] flex-col md:h-[min(72vh,52rem)]">
@@ -87,14 +88,14 @@ export default function ChatInterface({ remainingToday, ...callbacks }: ChatInte
 
       <div className="pt-2">
         {voice.status !== "idle" ? (
-          <VoiceBar status={voice.status} partial={voice.partial} onEnd={() => voice.stop()} />
+          <VoiceBar status={voice.status} partial={voice.partial} hint={voice.hint} onEnd={() => voice.stop()} />
         ) : (
           <ChatInput
             input={input}
             onInputChange={setInput}
             onSubmit={handleSubmit}
             disabled={isSending || !historyLoaded || outOfMessages}
-            onStartVoice={voice.supported ? () => void voice.start() : undefined}
+            onStartVoice={() => void voice.start()}
           />
         )}
         {voice.error && (
@@ -106,9 +107,11 @@ export default function ChatInterface({ remainingToday, ...callbacks }: ChatInte
           </p>
         )}
         <p className="mt-2 font-mono text-[11px] text-muted" aria-live="polite">
-          {outOfMessages
-            ? "demo · today's messages are used up. Come back tomorrow, I'll still remember you."
-            : `demo · ${remainingToday} message${remainingToday === 1 ? "" : "s"} left today`}
+          {remainingToday === null
+            ? "demo"
+            : outOfMessages
+              ? "demo · today's messages are used up. Come back tomorrow, I'll still remember you."
+              : `demo · ${remainingToday} message${remainingToday === 1 ? "" : "s"} left today`}
         </p>
       </div>
     </div>

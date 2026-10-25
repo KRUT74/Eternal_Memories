@@ -18,7 +18,34 @@ const BARGE_IN_WORDS = 2
 // Voice mode switches itself off after this long with nothing said.
 const IDLE_TIMEOUT_MS = 60_000
 
+// If nothing at all has been heard this long after listening starts, suggest checking the mic.
+const NOTHING_HEARD_HINT_MS = 8_000
+
 const wordCount = (text: string) => text.trim().split(/\s+/).filter(Boolean).length
+
+const CHECK_INPUT =
+  "check which microphone your browser is using (site settings → Microphone) and that it isn't muted"
+
+/** Turns a getUserMedia failure into a message that says what to do about it. */
+function microphoneErrorMessage(error: unknown): string {
+  const name = error instanceof DOMException ? error.name : ""
+  switch (name) {
+    case "NotAllowedError":
+    case "PermissionDeniedError":
+    case "SecurityError":
+      return "Microphone access is blocked for this site. Click the icon to the left of the address bar, set Microphone to Allow, and try again. On a Mac, also allow your browser under System Settings → Privacy & Security → Microphone."
+    case "NotFoundError":
+    case "DevicesNotFoundError":
+    case "OverconstrainedError":
+      return "No microphone was found. Connect one or check your computer's sound input settings, then try again."
+    case "NotReadableError":
+    case "TrackStartError":
+    case "AbortError":
+      return "Your microphone couldn't start. It may be in use by another app such as Zoom or Teams. Close it and try again."
+    default:
+      return "Couldn't start the microphone. You can keep typing instead."
+  }
+}
 
 /**
  * Hands-free voice conversation: ElevenLabs Scribe listens and decides when you've
@@ -29,6 +56,7 @@ export function useVoiceConversation({ send }: VoiceOptions) {
   const [status, setStatusState] = useState<VoiceStatus>("idle")
   const [partial, setPartial] = useState("")
   const [error, setError] = useState<string | null>(null)
+  const [hint, setHint] = useState<string | null>(null)
 
   const statusRef = useRef<VoiceStatus>("idle")
   const connectionRef = useRef<RealtimeConnection | null>(null)
@@ -36,6 +64,8 @@ export function useVoiceConversation({ send }: VoiceOptions) {
   const turnRef = useRef(0)
   const tokenExpiresAtRef = useRef(0)
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const heardAnythingRef = useRef(false)
   const sendRef = useRef(send)
   useEffect(() => {
     sendRef.current = send
@@ -46,17 +76,21 @@ export function useVoiceConversation({ send }: VoiceOptions) {
     setStatusState(next)
   }
 
-  const supported =
-    typeof window !== "undefined" && !!navigator.mediaDevices?.getUserMedia && typeof WebSocket !== "undefined"
-
   const clearIdleTimer = () => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
     idleTimerRef.current = null
   }
 
+  const clearHint = () => {
+    if (hintTimerRef.current) clearTimeout(hintTimerRef.current)
+    hintTimerRef.current = null
+    setHint(null)
+  }
+
   const stop = useCallback((reason?: string) => {
     turnRef.current++
     clearIdleTimer()
+    clearHint()
     const connection = connectionRef.current
     connectionRef.current = null
     connection?.close()
@@ -69,7 +103,12 @@ export function useVoiceConversation({ send }: VoiceOptions) {
   const armIdleTimer = useCallback(() => {
     clearIdleTimer()
     idleTimerRef.current = setTimeout(() => {
-      if (statusRef.current === "listening") stop("Voice mode ended after a minute of quiet.")
+      if (statusRef.current !== "listening") return
+      stop(
+        heardAnythingRef.current
+          ? "Voice mode ended after a minute of quiet."
+          : `Voice mode ended because I couldn't hear anything. Please ${CHECK_INPUT}.`,
+      )
     }, IDLE_TIMEOUT_MS)
   }, [stop])
 
@@ -136,6 +175,10 @@ export function useVoiceConversation({ send }: VoiceOptions) {
     connection.on(RealtimeEvents.PARTIAL_TRANSCRIPT, (message) => {
       if (connectionRef.current !== connection) return
       const text = message.text ?? ""
+      if (text.trim() && !heardAnythingRef.current) {
+        heardAnythingRef.current = true
+        clearHint()
+      }
       if (statusRef.current === "speaking" && wordCount(text) >= BARGE_IN_WORDS) {
         // The user is talking over the reply: stop speaking and listen.
         turnRef.current++
@@ -174,7 +217,24 @@ export function useVoiceConversation({ send }: VoiceOptions) {
   const start = useCallback(async () => {
     if (statusRef.current !== "idle") return
     setError(null)
+
+    if (!window.isSecureContext) {
+      setError("Voice needs a secure connection. Open this page over https, or at localhost when running it locally.")
+      return
+    }
+    if (!navigator.mediaDevices?.getUserMedia || typeof WebSocket === "undefined" || typeof AudioWorkletNode === "undefined") {
+      setError("This browser doesn't support voice conversations. Try a recent Chrome, Edge, Safari or Firefox.")
+      return
+    }
+
     setStatus("connecting")
+    heardAnythingRef.current = false
+    clearHint()
+    hintTimerRef.current = setTimeout(() => {
+      if (!heardAnythingRef.current && statusRef.current === "listening") {
+        setHint(`I can't hear anything yet. Please ${CHECK_INPUT}.`)
+      }
+    }, NOTHING_HEARD_HINT_MS)
 
     queueRef.current ??= new SpeechQueue({
       onSpeakingStart: () => {
@@ -200,8 +260,8 @@ export function useVoiceConversation({ send }: VoiceOptions) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       stream.getTracks().forEach((track) => track.stop())
-    } catch {
-      stop("Microphone access was blocked. Allow it in your browser's site settings to talk, or keep typing.")
+    } catch (err) {
+      stop(microphoneErrorMessage(err))
       return
     }
     if (statusRef.current === "idle") return
@@ -230,5 +290,5 @@ export function useVoiceConversation({ send }: VoiceOptions) {
   // Release the microphone if the component goes away mid-conversation.
   useEffect(() => () => stop(), [stop])
 
-  return { status, partial, error, clearError: () => setError(null), supported, start, stop }
+  return { status, partial, hint, error, clearError: () => setError(null), start, stop }
 }

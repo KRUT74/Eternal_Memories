@@ -1,6 +1,5 @@
 "use client"
 
-import type React from "react"
 import type { MemoryItem } from "../lib/types"
 
 interface ConstellationProps {
@@ -51,13 +50,6 @@ export default function Constellation({ memories, shapingIds, newIds, activeId, 
     .sort((a, b) => (a.created_at ?? "").localeCompare(b.created_at ?? ""))
     .map((m) => ({ ...m, ...position(m.id) }))
 
-  const onKey = (e: React.KeyboardEvent, id: string) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault()
-      onActivate(activeId === id ? null : id)
-    }
-  }
-
   return (
     <svg
       viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
@@ -80,17 +72,16 @@ export default function Constellation({ memories, shapingIds, newIds, activeId, 
         const active = activeId === s.id
         const color = fresh ? "var(--teal)" : shaping ? "var(--star)" : "#8a93b0"
         return (
+          // Focusable so keyboard users can walk the map; focusing a star highlights its list entry.
           <g
             key={s.id}
-            role="button"
+            role="img"
             tabIndex={0}
             aria-label={`Memory: ${s.content}${shaping ? " (shaped the last reply)" : ""}${fresh ? " (new)" : ""}`}
-            aria-pressed={active}
             onMouseEnter={() => onActivate(s.id)}
             onMouseLeave={() => onActivate(null)}
             onFocus={() => onActivate(s.id)}
             onBlur={() => onActivate(null)}
-            onKeyDown={(e) => onKey(e, s.id)}
             className={`outline-none ${fresh ? "star-in" : ""}`}
           >
             {/* larger invisible hit area */}

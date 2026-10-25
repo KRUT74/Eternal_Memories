@@ -1,6 +1,7 @@
 import type React from "react"
 import type { Metadata, Viewport } from "next"
 import { Instrument_Sans, Instrument_Serif, JetBrains_Mono } from "next/font/google"
+import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/site"
 import "./globals.css"
 
 const sans = Instrument_Sans({ subsets: ["latin"], variable: "--font-instrument-sans" })
@@ -8,9 +9,34 @@ const serif = Instrument_Serif({ subsets: ["latin"], weight: "400", style: ["nor
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains-mono" })
 
 export const metadata: Metadata = {
-  title: "Eternal Memories: an AI companion that remembers",
-  description:
-    "Talk or type with an AI companion that remembers what matters to you across conversations. Built with Claude, Supabase pgvector and ElevenLabs voice.",
+  metadataBase: new URL(SITE_URL),
+  title: { default: SITE_TITLE, template: `%s · ${SITE_NAME}` },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  authors: [{ name: "Benjapon Kruthanooch" }],
+  keywords: ["AI companion", "long-term memory", "Claude", "voice AI", "ElevenLabs", "Supabase pgvector", "Next.js"],
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    url: "/",
+    siteName: SITE_NAME,
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    locale: "en_US",
+  },
+  twitter: { card: "summary_large_image", title: SITE_TITLE, description: SITE_DESCRIPTION },
+}
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  name: SITE_NAME,
+  url: SITE_URL,
+  description: SITE_DESCRIPTION,
+  applicationCategory: "LifestyleApplication",
+  operatingSystem: "Any (web browser)",
+  offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+  author: { "@type": "Person", name: "Benjapon Kruthanooch" },
 }
 
 export const viewport: Viewport = {
@@ -20,7 +46,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${sans.variable} ${serif.variable} ${mono.variable}`}>
-      <body>{children}</body>
+      <body>
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+        {children}
+      </body>
     </html>
   )
 }

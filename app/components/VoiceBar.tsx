@@ -12,11 +12,13 @@ const LABELS: Record<Exclude<VoiceStatus, "idle">, string> = {
 interface VoiceBarProps {
   status: Exclude<VoiceStatus, "idle">
   partial: string
+  /** Shown instead of the transcript, e.g. when no sound is reaching the microphone. */
+  hint?: string | null
   onEnd: () => void
 }
 
 /** Replaces the text box during a voice conversation. */
-export default function VoiceBar({ status, partial, onEnd }: VoiceBarProps) {
+export default function VoiceBar({ status, partial, hint, onEnd }: VoiceBarProps) {
   const color = status === "listening" ? "var(--teal)" : "var(--star)"
   return (
     <div className="flex items-center gap-4 rounded-2xl border border-star/40 bg-[#0e1426] p-3 pl-4" role="group" aria-label="Voice conversation">
@@ -30,9 +32,13 @@ export default function VoiceBar({ status, partial, onEnd }: VoiceBarProps) {
         <p className="font-mono text-xs tracking-wide" style={{ color }}>
           {LABELS[status]}
         </p>
-        <p className="truncate text-sm text-text/90">
-          {partial || (status === "listening" ? "Go ahead, I'm listening." : " ")}
-        </p>
+        {hint && !partial ? (
+          <p className="text-sm text-[#f7dca4]">{hint}</p>
+        ) : (
+          <p className="truncate text-sm text-text/90">
+            {partial || (status === "listening" ? "Go ahead, I'm listening." : "\u00a0")}
+          </p>
+        )}
       </div>
 
       <button
