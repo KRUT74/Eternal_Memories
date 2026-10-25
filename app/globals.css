@@ -99,10 +99,8 @@
 }
 
 /* Markdown inside assistant replies */
-.reply-prose p + p,
-.reply-prose ul,
-.reply-prose ol {
-  margin-top: 0.5rem;
+.reply-prose > * + * {
+  margin-top: 0.6rem;
 }
 .reply-prose ul {
   list-style: disc;
