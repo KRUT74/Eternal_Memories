@@ -5,10 +5,10 @@ import { useState } from "react"
 import { Button } from "../components/ui/button"
 import { Input } from "../components/ui/input"
 import { User, Mail, Lock, UserPlus, LogIn, Sparkles } from "lucide-react"
-import { setUser } from "../../lib/redis"
+import type { User as AppUser } from "../lib/types"
 
 interface AuthFormProps {
-  onAuth: (user: { id: string; name: string; email: string }) => void
+  onAuth: (user: AppUser) => void
 }
 
 export default function AuthForm({ onAuth }: AuthFormProps) {
@@ -53,26 +53,10 @@ export default function AuthForm({ onAuth }: AuthFormProps) {
         email: userEmail,
       }
 
-      console.log(`🚀 Attempting to ${isLogin ? "sign in" : "register"} user:`, user)
-
-      // Store user data in Redis AND localStorage (hybrid approach)
-      try {
-        await setUser(userEmail, user)
-        console.log("✅ User successfully stored in Redis!")
-      } catch (redisError) {
-        console.warn("⚠️ Redis storage failed, using localStorage fallback:", redisError)
-      }
-
-      // Always store in localStorage as backup
-      localStorage.setItem("chat_user", JSON.stringify(user))
-      console.log("💾 User stored in localStorage as backup")
-
-      console.log(`🎉 ${isLogin ? "Sign in" : "Registration"} successful!`)
-
+      // Demo-only sign-in: the user lives in localStorage. Real auth arrives with Supabase in Phase 2.
       // Call the onAuth callback
       onAuth(user)
     } catch (err) {
-      console.error("❌ Authentication failed:", err)
       setError(err instanceof Error ? err.message : "Authentication failed")
     } finally {
       setIsLoading(false)
@@ -175,13 +159,8 @@ export default function AuthForm({ onAuth }: AuthFormProps) {
         </button>
       </div>
 
-      <div className="mt-4 text-xs text-white/50 text-center">
-        <p>✨ Demo Mode: Use any cosmic credentials to continue ✨</p>
-        <p className="mt-1">Your eternal memories will persist across all dimensions</p>
-        <p className="mt-1 text-purple-300">🔒 Your session ID will never change</p>
-        <p className="mt-1 text-green-300">🤖 AI powered by your n8n workflow</p>
-        <p className="mt-1 text-blue-300">💾 Now with Redis persistence!</p>
-        <p className="mt-1 text-yellow-300">🔍 Check browser console for logs!</p>
+      <div className="mt-4 text-xs text-white/60 text-center">
+        <p>✨ Demo mode: use any email and password to continue ✨</p>
       </div>
     </div>
   )

@@ -7,8 +7,7 @@ const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "Eternal Memories AI",
-  description: "AI chat application with eternal memory capabilities - where conversations transcend time",
-    generator: 'v0.dev'
+  description: "AI chat application with eternal memory capabilities - where conversations transcend time"
 }
 
 export default function RootLayout({
