@@ -5,18 +5,17 @@ import { Brain, X } from "lucide-react"
 import type { MemoryItem } from "../lib/types"
 
 interface MemoryPanelProps {
-  sessionId: string
   /** Changes whenever new memories were stored, so the panel refetches. */
   refreshKey: number
 }
 
-export default function MemoryPanel({ sessionId, refreshKey }: MemoryPanelProps) {
+export default function MemoryPanel({ refreshKey }: MemoryPanelProps) {
   const [memories, setMemories] = useState<MemoryItem[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    fetch(`/api/memories?userId=${encodeURIComponent(sessionId)}`)
+    fetch("/api/memories")
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error("Could not load memories"))))
       .then((data: { memories: MemoryItem[] }) => {
         if (!cancelled) {
@@ -30,12 +29,12 @@ export default function MemoryPanel({ sessionId, refreshKey }: MemoryPanelProps)
     return () => {
       cancelled = true
     }
-  }, [sessionId, refreshKey])
+  }, [refreshKey])
 
   const forget = async (id: string) => {
     const previous = memories
     setMemories((current) => current?.filter((m) => m.id !== id) ?? null)
-    const res = await fetch(`/api/memories/${id}?userId=${encodeURIComponent(sessionId)}`, { method: "DELETE" })
+    const res = await fetch(`/api/memories/${id}`, { method: "DELETE" })
     if (!res.ok && res.status !== 404) {
       setMemories(previous)
       setError("Could not forget that memory")

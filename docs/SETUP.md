@@ -16,9 +16,13 @@ Vercel's environment variables — never in code.
 
 ## 2. Database tables
 
-Open **SQL Editor** → **New query**, paste the contents of
-`supabase/migrations/20261025000000_memory.sql`, and click **Run**.
-You should see `messages` and `memories` under **Table Editor**.
+Open **SQL Editor** → **Create a new snippet**, and run each file in
+`supabase/migrations/` in order (paste, then **Run**):
+
+1. `20261025000000_memory.sql`: `messages`, `memories` and the memory search function
+2. `20261026000000_usage_limits.sql`: the usage log behind rate limits and the daily budget
+
+Each should report "Success. No rows returned."
 
 ## 3. Shared secret for the embedding function
 
@@ -55,7 +59,10 @@ CLI alternative: `npx supabase@2.122.0 login`, then
 cp .env.example .env.local
 ```
 
-Fill in the four values in `.env.local`.
+Fill in the values in `.env.local`. For `SESSION_SECRET` (signs visitor cookies), use
+another `openssl rand -hex 32`. The optional `DEMO_*` settings tune the demo limits; the
+defaults are a $2 rolling-24-hour budget, 5 messages a minute and 40 a day per visitor,
+100 messages and 5 new sessions a day per network.
 
 ## 7. Check the embedding function
 

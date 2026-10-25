@@ -11,8 +11,7 @@ export interface Message {
   remembered?: MemoryItem[]
 }
 
-export interface User {
-  id: string
+export interface SessionInfo {
   name: string
-  email: string
+  remainingToday: number
 }

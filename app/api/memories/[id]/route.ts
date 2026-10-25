@@ -1,12 +1,17 @@
+import { z } from "zod"
 import { forgetMemory } from "@/lib/server/memory"
+import { getSession, unauthorized } from "@/lib/server/session"
 
-export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession()
+  if (!session) return unauthorized()
+
   const { id } = await params
-  const userId = new URL(req.url).searchParams.get("userId")
-  if (!userId) return Response.json({ error: "userId is required" }, { status: 400 })
+  if (!z.uuid().safeParse(id).success) return Response.json({ error: "Not found" }, { status: 404 })
 
   try {
-    const deleted = await forgetMemory(userId, id)
+    // Scoped to the session's user, so another visitor's memory ID simply isn't found.
+    const deleted = await forgetMemory(session.userId, id)
     return deleted ? new Response(null, { status: 204 }) : Response.json({ error: "Not found" }, { status: 404 })
   } catch (error) {
     console.error("Forgetting memory failed", error)

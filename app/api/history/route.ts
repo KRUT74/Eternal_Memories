@@ -1,11 +1,12 @@
 import { recentMessages } from "@/lib/server/history"
+import { getSession, unauthorized } from "@/lib/server/session"
 
-export async function GET(req: Request) {
-  const userId = new URL(req.url).searchParams.get("userId")
-  if (!userId) return Response.json({ error: "userId is required" }, { status: 400 })
+export async function GET() {
+  const session = await getSession()
+  if (!session) return unauthorized()
 
   try {
-    const messages = await recentMessages(userId, 100)
+    const messages = await recentMessages(session.userId, 100)
     return Response.json({ messages: messages.map(({ id, role, content }) => ({ id, role, content })) })
   } catch (error) {
     console.error("Loading history failed", error)

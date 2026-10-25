@@ -3,15 +3,18 @@ import { z } from "zod"
 import { anthropic, CHAT_MODEL } from "@/lib/server/anthropic"
 import { recentMessages, saveMessage } from "@/lib/server/history"
 import { extractAndStore, recall } from "@/lib/server/memory"
+import { getSession, ipHash, unauthorized } from "@/lib/server/session"
+import { checkChatAllowed, estimateCost, limitResponse, recordUsage } from "@/lib/server/usage"
 
 export const maxDuration = 60
 
 const HISTORY_TURNS = 20
 
+// Keeps each reply, and so each request's cost, bounded for the public demo.
+const MAX_REPLY_TOKENS = 1024
+
 const RequestSchema = z.object({
-  userId: z.string().min(1).max(200),
-  userName: z.string().min(1).max(100),
-  message: z.string().trim().min(1).max(4000),
+  message: z.string().trim().min(1).max(2000),
 })
 
 const SYSTEM_PROMPT = `You are Eternal Memories, a warm and thoughtful companion who remembers the people you talk with across conversations.
@@ -27,16 +30,26 @@ export type ChatEvent =
   | { type: "done" }
 
 export async function POST(req: Request) {
+  const session = await getSession()
+  if (!session) return unauthorized()
+  const { userId, name: userName } = session
+
   const parsed = RequestSchema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) {
-    return Response.json({ error: "Invalid request" }, { status: 400 })
+    return Response.json({ error: "Messages can be up to 2,000 characters." }, { status: 400 })
   }
-  const { userId, userName, message } = parsed.data
+  const { message } = parsed.data
+
+  const ip = ipHash(req)
+  const check = await checkChatAllowed(userId, ip)
+  if (!check.ok) return limitResponse(check)
 
   const encoder = new TextEncoder()
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const send = (event: ChatEvent) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`))
+      // Every attempt counts towards the rate limits, priced at whatever it cost.
+      let costUsd = 0
 
       try {
         const [history, memories] = await Promise.all([recentMessages(userId, HISTORY_TURNS), recall(userId, message)])
@@ -56,7 +69,7 @@ export async function POST(req: Request) {
 
         const response = anthropic().beta.messages.stream({
           model: CHAT_MODEL,
-          max_tokens: 4096,
+          max_tokens: MAX_REPLY_TOKENS,
           output_config: { effort: "low" },
           betas: ["server-side-fallback-2026-07-01"],
           fallbacks: "default",
@@ -71,6 +84,7 @@ export async function POST(req: Request) {
         }
 
         const final = await response.finalMessage()
+        costUsd += estimateCost(final.model, final.usage)
         if (final.stop_reason === "refusal") {
           send({ type: "error", error: "I can't help with that one. Let's talk about something else." })
           send({ type: "done" })
@@ -86,7 +100,8 @@ export async function POST(req: Request) {
         const saved = await saveMessage(userId, "assistant", reply)
 
         try {
-          const stored = await extractAndStore(userId, message, reply, memories, saved.id)
+          const { stored, costUsd: extractionCost } = await extractAndStore(userId, message, reply, memories, saved.id)
+          costUsd += extractionCost
           if (stored.length) {
             send({ type: "remembered", memories: stored.map(({ id, content }) => ({ id, content })) })
           }
@@ -101,6 +116,7 @@ export async function POST(req: Request) {
         send({ type: "error", error: "Something went wrong reaching the memory service. Please try again." })
         send({ type: "done" })
       } finally {
+        await recordUsage("chat", userId, ip, costUsd).catch((error) => console.error("Recording usage failed", error))
         controller.close()
       }
     },

@@ -2,6 +2,7 @@ import "server-only"
 import { z } from "zod"
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod"
 import { anthropic, MEMORY_MODEL } from "./anthropic"
+import { estimateCost } from "./usage"
 import { embed } from "./embed"
 import { supabase } from "./supabase"
 
@@ -74,7 +75,7 @@ Most exchanges contain nothing new; return an empty list then.`
 
 /**
  * Pulls durable facts out of one exchange and stores them.
- * Returns the newly stored memories.
+ * Returns the newly stored memories and the estimated cost of the extraction call.
  */
 export async function extractAndStore(
   userId: string,
@@ -82,7 +83,7 @@ export async function extractAndStore(
   assistantReply: string,
   known: Memory[],
   sourceMessageId: string | null,
-): Promise<Memory[]> {
+): Promise<{ stored: Memory[]; costUsd: number }> {
   const knownList = known.length
     ? known.map((m) => `- [${m.id}] ${m.content}`).join("\n")
     : "(none yet)"
@@ -100,9 +101,10 @@ export async function extractAndStore(
     ],
   })
 
-  if (response.stop_reason === "refusal" || !response.parsed_output) return []
+  const costUsd = estimateCost(response.model, response.usage)
+  if (response.stop_reason === "refusal" || !response.parsed_output) return { stored: [], costUsd }
   const facts = response.parsed_output.memories.filter((m) => m.content.trim())
-  if (facts.length === 0) return []
+  if (facts.length === 0) return { stored: [], costUsd }
 
   const embeddings = await embed(facts.map((f) => f.content))
   const knownIds = new Set(known.map((m) => m.id))
@@ -131,5 +133,10 @@ export async function extractAndStore(
     stored.push(data)
   }
 
-  return stored
+  return { stored, costUsd }
+}
+
+export async function deleteAllUserData(userId: string) {
+  const { error } = await supabase().rpc("delete_user_data", { p_user_id: userId })
+  if (error) throw error
 }

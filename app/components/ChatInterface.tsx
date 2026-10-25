@@ -6,12 +6,13 @@ import { RefreshCw } from "lucide-react"
 import ChatInput from "./ChatInput"
 import ChatMessage from "./ChatMessage"
 import { Button } from "./ui/button"
-import type { MemoryItem, Message, User } from "../lib/types"
+import type { MemoryItem, Message } from "../lib/types"
 
 interface ChatInterfaceProps {
-  sessionId: string
-  user: User
+  remainingToday: number
+  onMessageSent: () => void
   onRemembered: (memories: MemoryItem[]) => void
+  onSessionExpired: () => void
 }
 
 type ChatEvent =
@@ -20,7 +21,7 @@ type ChatEvent =
   | { type: "error"; error: string }
   | { type: "done" }
 
-export default function ChatInterface({ sessionId, user, onRemembered }: ChatInterfaceProps) {
+export default function ChatInterface({ remainingToday, onMessageSent, onRemembered, onSessionExpired }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -30,8 +31,11 @@ export default function ChatInterface({ sessionId, user, onRemembered }: ChatInt
 
   useEffect(() => {
     let cancelled = false
-    fetch(`/api/history?userId=${encodeURIComponent(sessionId)}`)
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("Could not load your conversation"))))
+    fetch("/api/history")
+      .then((res) => {
+        if (res.status === 401) onSessionExpired()
+        return res.ok ? res.json() : Promise.reject(new Error("Could not load your conversation"))
+      })
       .then((data: { messages: Message[] }) => {
         if (!cancelled) setMessages(data.messages)
       })
@@ -44,7 +48,9 @@ export default function ChatInterface({ sessionId, user, onRemembered }: ChatInt
     return () => {
       cancelled = true
     }
-  }, [sessionId])
+    // Load once per mount; the parent remounts this component for a new session.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -79,8 +85,13 @@ export default function ChatInterface({ sessionId, user, onRemembered }: ChatInt
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: sessionId, userName: user.name, message: text }),
+        body: JSON.stringify({ message: text }),
       })
+      if (response.status === 401) {
+        onSessionExpired()
+        return
+      }
+      if (response.ok) onMessageSent()
       if (!response.ok || !response.body) {
         const data = await response.json().catch(() => ({}))
         throw new Error(data.error || "Failed to get a response")
@@ -168,8 +179,13 @@ export default function ChatInterface({ sessionId, user, onRemembered }: ChatInt
           input={input}
           handleInputChange={(e) => setInput(e.target.value)}
           handleSubmit={handleSubmit}
-          isLoading={isLoading || !historyLoaded}
+          isLoading={isLoading || !historyLoaded || remainingToday <= 0}
         />
+        <p className="mt-2 text-xs text-white/60" aria-live="polite">
+          {remainingToday > 0
+            ? `Demo: ${remainingToday} message${remainingToday === 1 ? "" : "s"} left today`
+            : "You've used today's demo messages. Come back tomorrow - I'll still remember you."}
+        </p>
       </div>
     </div>
   )
