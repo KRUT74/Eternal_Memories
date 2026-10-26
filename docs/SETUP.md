@@ -77,8 +77,11 @@ realtime at $0.39 per hour). The app counts it against the same daily budgets as
    - In Resend → **Domains**, add the domain and copy each DNS record it lists into Vercel →
      **Domains → (domain) → DNS Records**. Wait for Resend to show "Verified".
    - In Vercel environment variables set `RESEND_API_KEY`, `EMAIL_FROM=Eternal Memories <hello@eternalmemories.space>`,
-     `EMAIL_SIGNIN_ENABLED=true` and `NEXT_PUBLIC_SITE_URL=https://www.eternalmemories.space` (Vercel serves
-     `www` as the main address and redirects the bare domain to it), then redeploy.
+     `EMAIL_SIGNIN_ENABLED=true` and `NEXT_PUBLIC_SITE_URL=https://eternalmemories.space`, then redeploy.
+   - In Vercel → **Domains**, connect `eternalmemories.space` to Production and set
+     `www.eternalmemories.space` to a 308 redirect to it, so there is one main address.
+   - Add a DMARC record in Vercel DNS: name `_dmarc`, type `TXT`,
+     value `v=DMARC1; p=quarantine; adkim=r; aspf=r; pct=100`.
 
    Until a domain is verified, leave `EMAIL_SIGNIN_ENABLED` off: visitors can still try the app
    as guests.

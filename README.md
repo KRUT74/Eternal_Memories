@@ -22,9 +22,13 @@ days or weeks later. Every memory is visible, and you can make it forget any of 
 - **Private by design.** Identity lives in a signed, httpOnly session cookie, sign-in codes
   are stored only as hashes, and nothing is shared between visitors.
 
-| Voice conversation | On a phone |
+| Sign in with email or as a guest | Voice conversation |
 | --- | --- |
-| ![Voice mode: the companion is speaking and can be interrupted](docs/screenshots/voice.png) | ![The constellation as a drawer on a phone](docs/screenshots/mobile-constellation.png) |
+| ![The main page with sign-in by emailed code or as a guest](docs/screenshots/welcome.png) | ![Voice mode: the companion is speaking and can be interrupted](docs/screenshots/voice.png) |
+
+| On a phone | The constellation on a phone |
+| --- | --- |
+| ![The chat on a phone](docs/screenshots/mobile-chat.png) | ![The constellation as a drawer on a phone](docs/screenshots/mobile-constellation.png) |
 
 ## How it works
 
