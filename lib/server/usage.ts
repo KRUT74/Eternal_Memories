@@ -15,8 +15,12 @@ const MOST_EXPENSIVE: [number, number] = [10, 50]
 // ElevenLabs API rates: Flash v2.5 text-to-speech and Scribe v2 Realtime.
 const TTS_USD_PER_1K_CHARS = 0.05
 const STT_USD_PER_HOUR = 0.39
-/** Each voice token is charged as this many minutes of listening, up front. */
-export const VOICE_SESSION_MINUTES = 5
+/**
+ * Each voice token is charged as this many minutes of listening, up front; the
+ * client reconnects with a new token between turns once the block is used.
+ * Small blocks keep a few quick voice restarts from eating a visitor's budget.
+ */
+export const VOICE_SESSION_MINUTES = 2
 
 export const speechCost = (characters: number) => (characters / 1000) * TTS_USD_PER_1K_CHARS
 export const listeningCost = (minutes: number) => (minutes / 60) * STT_USD_PER_HOUR

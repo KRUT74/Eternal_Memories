@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test"
-import { failMicrophone, mockBackend, startSession } from "./mocks"
+import { failMicrophone, fakeMicrophone, mockBackend, mockSilentScribe, startSession } from "./mocks"
 
 test.describe("microphone problems get specific advice", () => {
   for (const [errorName, message] of [
@@ -50,4 +50,29 @@ test("a hands-free turn: listen, think, reply, listen again", async ({ page }) =
   await page.keyboard.press("Escape")
   await expect(bar).toBeHidden()
   await expect(page.getByRole("textbox", { name: "Message" })).toBeVisible()
+})
+
+test.describe("when no words arrive, the advice depends on what the microphone hears", () => {
+  test("a dead microphone is called out, with the reload tip", async ({ page }) => {
+    await fakeMicrophone(page, 0)
+    await mockBackend(page)
+    await mockSilentScribe(page)
+    await startSession(page)
+    await page.getByRole("button", { name: "Start voice conversation" }).click()
+    const bar = page.getByRole("group", { name: "Voice conversation" })
+    await expect(bar.getByText("Listening…")).toBeVisible()
+    await expect(bar.getByRole("meter", { name: "Microphone level" })).toHaveAttribute("aria-valuenow", "0")
+    await expect(bar.getByText(/No sound is reaching your microphone. Reload this page/)).toBeVisible({ timeout: 12_000 })
+  })
+
+  test("sound without words gets a gentle nudge instead", async ({ page }) => {
+    await fakeMicrophone(page, 0.3)
+    await mockBackend(page)
+    await mockSilentScribe(page)
+    await startSession(page)
+    await page.getByRole("button", { name: "Start voice conversation" }).click()
+    const bar = page.getByRole("group", { name: "Voice conversation" })
+    await expect(bar.getByRole("meter", { name: "Microphone level" })).not.toHaveAttribute("aria-valuenow", "0")
+    await expect(bar.getByText(/I can hear sound but no words yet/)).toBeVisible({ timeout: 12_000 })
+  })
 })

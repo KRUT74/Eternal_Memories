@@ -95,3 +95,33 @@ export async function failMicrophone(page: Page, errorName: string) {
     navigator.mediaDevices.getUserMedia = () => Promise.reject(new DOMException("mock", name))
   }, errorName)
 }
+
+/**
+ * Replaces the microphone with a generated tone: volume 0 behaves like a dead input
+ * (e.g. after the computer slept), anything above that like a room with sound in it.
+ */
+export async function fakeMicrophone(page: Page, volume: number) {
+  await page.addInitScript((gain) => {
+    navigator.mediaDevices.getUserMedia = async () => {
+      const context = new AudioContext()
+      const oscillator = context.createOscillator()
+      const level = context.createGain()
+      level.gain.value = gain
+      const destination = context.createMediaStreamDestination()
+      oscillator.connect(level).connect(destination)
+      oscillator.start()
+      return destination.stream
+    }
+  }, volume)
+}
+
+/** Mocks the voice token and a Scribe socket that connects but never hears words. */
+export async function mockSilentScribe(page: Page) {
+  await page.route("**/api/voice/token", (route) =>
+    route.fulfill({ json: { token: "sutkn_test", modelId: "scribe_v2_realtime", validForSeconds: 120 } }),
+  )
+  await page.routeWebSocket(/api\.elevenlabs\.io/, (ws) => {
+    ws.send(JSON.stringify({ message_type: "session_started", session_id: "test", config: {} }))
+    ws.onMessage(() => {})
+  })
+}

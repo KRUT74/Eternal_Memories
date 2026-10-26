@@ -88,7 +88,7 @@ export default function ChatInterface({ remainingToday, ...callbacks }: ChatInte
 
       <div className="pt-2">
         {voice.status !== "idle" ? (
-          <VoiceBar status={voice.status} partial={voice.partial} hint={voice.hint} onEnd={() => voice.stop()} />
+          <VoiceBar status={voice.status} partial={voice.partial} hint={voice.hint} level={voice.level} onEnd={() => voice.stop()} />
         ) : (
           <ChatInput
             input={input}

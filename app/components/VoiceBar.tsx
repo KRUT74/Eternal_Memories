@@ -14,11 +14,16 @@ interface VoiceBarProps {
   partial: string
   /** Shown instead of the transcript, e.g. when no sound is reaching the microphone. */
   hint?: string | null
+  /** Microphone input level, 0 to 1. */
+  level: number
   onEnd: () => void
 }
 
+// Relative heights of the meter bars, so it reads like a small waveform.
+const BARS = [0.45, 0.75, 1, 0.75, 0.45]
+
 /** Replaces the text box during a voice conversation. */
-export default function VoiceBar({ status, partial, hint, onEnd }: VoiceBarProps) {
+export default function VoiceBar({ status, partial, hint, level, onEnd }: VoiceBarProps) {
   const color = status === "listening" ? "var(--teal)" : "var(--star)"
   return (
     <div className="flex items-center gap-4 rounded-2xl border border-star/40 bg-[#0e1426] p-3 pl-4" role="group" aria-label="Voice conversation">
@@ -40,6 +45,25 @@ export default function VoiceBar({ status, partial, hint, onEnd }: VoiceBarProps
           </p>
         )}
       </div>
+
+      {status === "listening" && (
+        <div
+          className="flex h-8 shrink-0 items-center gap-0.5"
+          role="meter"
+          aria-label="Microphone level"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(level * 100)}
+        >
+          {BARS.map((scale, i) => (
+            <span
+              key={i}
+              className="w-1 rounded-full bg-teal transition-[height] duration-100 motion-reduce:transition-none"
+              style={{ height: `${Math.max(12, Math.min(100, level * scale * 140))}%`, opacity: level > 0.02 ? 1 : 0.35 }}
+            />
+          ))}
+        </div>
+      )}
 
       <button
         type="button"

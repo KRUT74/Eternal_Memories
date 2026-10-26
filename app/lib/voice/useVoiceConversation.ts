@@ -18,13 +18,18 @@ const BARGE_IN_WORDS = 2
 // Voice mode switches itself off after this long with nothing said.
 const IDLE_TIMEOUT_MS = 60_000
 
-// If nothing at all has been heard this long after listening starts, suggest checking the mic.
+// If no words have been heard this long after listening starts, explain why.
 const NOTHING_HEARD_HINT_MS = 8_000
+// Below this RMS level the microphone is delivering silence, not a quiet room. A
+// "dead" input (e.g. after the computer slept or the audio device changed)
+// produces exact zeros; even a quiet room with noise suppression is well above this.
+const SILENT_INPUT_RMS = 0.0005
 
 const wordCount = (text: string) => text.trim().split(/\s+/).filter(Boolean).length
 
-const CHECK_INPUT =
-  "check which microphone your browser is using (site settings → Microphone) and that it isn't muted"
+const NO_SIGNAL =
+  "No sound is reaching your microphone. Reload this page (this often fixes it after your computer has slept or your headphones changed), and check which microphone your browser is using (site settings → Microphone)."
+const NO_WORDS = "I can hear sound but no words yet. Go ahead and speak, a little closer to the microphone if you can."
 
 /** Turns a getUserMedia failure into a message that says what to do about it. */
 function microphoneErrorMessage(error: unknown): string {
@@ -57,6 +62,8 @@ export function useVoiceConversation({ send }: VoiceOptions) {
   const [partial, setPartial] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [hint, setHint] = useState<string | null>(null)
+  /** Microphone input level, 0 to 1, for the meter in the voice bar. */
+  const [level, setLevel] = useState(0)
 
   const statusRef = useRef<VoiceStatus>("idle")
   const connectionRef = useRef<RealtimeConnection | null>(null)
@@ -66,6 +73,9 @@ export function useVoiceConversation({ send }: VoiceOptions) {
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const heardAnythingRef = useRef(false)
+  // Our own tap on the microphone, separate from Scribe's, to measure input level.
+  const meterRef = useRef<{ stream: MediaStream; context: AudioContext; timer: ReturnType<typeof setInterval> } | null>(null)
+  const peakRmsRef = useRef(0)
   const sendRef = useRef(send)
   useEffect(() => {
     sendRef.current = send
@@ -87,10 +97,41 @@ export function useVoiceConversation({ send }: VoiceOptions) {
     setHint(null)
   }
 
+  const startMeter = (stream: MediaStream, context: AudioContext) => {
+    const analyser = context.createAnalyser()
+    analyser.fftSize = 1024
+    context.createMediaStreamSource(stream).connect(analyser)
+    const samples = new Float32Array(analyser.fftSize)
+    peakRmsRef.current = 0
+    const timer = setInterval(() => {
+      analyser.getFloatTimeDomainData(samples)
+      let sum = 0
+      for (const sample of samples) sum += sample * sample
+      const rms = Math.sqrt(sum / samples.length)
+      peakRmsRef.current = Math.max(peakRmsRef.current, rms)
+      setLevel(Math.min(1, rms * 8))
+    }, 100)
+    meterRef.current = { stream, context, timer }
+  }
+
+  const stopMeter = () => {
+    const meter = meterRef.current
+    meterRef.current = null
+    if (!meter) return
+    clearInterval(meter.timer)
+    meter.stream.getTracks().forEach((track) => track.stop())
+    void meter.context.close().catch(() => {})
+    setLevel(0)
+  }
+
+  /** What to say when no words have arrived: a dead microphone, or just no speech yet. */
+  const silenceAdvice = () => (peakRmsRef.current < SILENT_INPUT_RMS ? NO_SIGNAL : NO_WORDS)
+
   const stop = useCallback((reason?: string) => {
     turnRef.current++
     clearIdleTimer()
     clearHint()
+    stopMeter()
     const connection = connectionRef.current
     connectionRef.current = null
     connection?.close()
@@ -107,7 +148,9 @@ export function useVoiceConversation({ send }: VoiceOptions) {
       stop(
         heardAnythingRef.current
           ? "Voice mode ended after a minute of quiet."
-          : `Voice mode ended because I couldn't hear anything. Please ${CHECK_INPUT}.`,
+          : peakRmsRef.current < SILENT_INPUT_RMS
+            ? `Voice mode ended because no sound reached your microphone. ${NO_SIGNAL}`
+            : "Voice mode ended because I couldn't make out any words.",
       )
     }, IDLE_TIMEOUT_MS)
   }, [stop])
@@ -227,13 +270,15 @@ export function useVoiceConversation({ send }: VoiceOptions) {
       return
     }
 
+    // Created inside the click, before any await, so the browser lets it run.
+    const meterContext = new AudioContext()
+    void meterContext.resume().catch(() => {})
+
     setStatus("connecting")
     heardAnythingRef.current = false
     clearHint()
     hintTimerRef.current = setTimeout(() => {
-      if (!heardAnythingRef.current && statusRef.current === "listening") {
-        setHint(`I can't hear anything yet. Please ${CHECK_INPUT}.`)
-      }
+      if (!heardAnythingRef.current && statusRef.current === "listening") setHint(silenceAdvice())
     }, NOTHING_HEARD_HINT_MS)
 
     queueRef.current ??= new SpeechQueue({
@@ -256,15 +301,22 @@ export function useVoiceConversation({ send }: VoiceOptions) {
     })
     queueRef.current.unlock()
 
-    // Ask for the microphone ourselves first, so a refusal gets a clear message.
+    // Ask for the microphone ourselves first, so a refusal gets a clear message,
+    // and keep the stream to drive the input level meter.
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      stream.getTracks().forEach((track) => track.stop())
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: false, autoGainControl: false },
+      })
+      startMeter(stream, meterContext)
     } catch (err) {
+      void meterContext.close().catch(() => {})
       stop(microphoneErrorMessage(err))
       return
     }
-    if (statusRef.current === "idle") return
+    if (statusRef.current === "idle") {
+      stopMeter()
+      return
+    }
 
     try {
       await connect()
@@ -290,5 +342,5 @@ export function useVoiceConversation({ send }: VoiceOptions) {
   // Release the microphone if the component goes away mid-conversation.
   useEffect(() => () => stop(), [stop])
 
-  return { status, partial, hint, error, clearError: () => setError(null), start, stop }
+  return { status, partial, hint, level, error, clearError: () => setError(null), start, stop }
 }
