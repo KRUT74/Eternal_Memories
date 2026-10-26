@@ -1,147 +1,100 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Button } from "../components/ui/button"
-import { User, LogOut, Settings, Database, Sparkles } from "lucide-react"
+import { useState } from "react"
+import { Button } from "./ui/button"
+import { LogOut, Mail, Trash2, User as UserIcon } from "lucide-react"
+import type { AppSession } from "./Home"
 
 interface UserProfileProps {
-  user: { id: string; name: string; email: string }
-  sessionId: string
-  onLogout: () => void
+  session: AppSession
+  canUpgrade: boolean
+  onUpgrade: () => void
+  onSignedOut: () => void
 }
 
-export default function UserProfile({ user, sessionId, onLogout }: UserProfileProps) {
+export default function UserProfile({ session, canUpgrade, onUpgrade, onSignedOut }: UserProfileProps) {
   const [showDropdown, setShowDropdown] = useState(false)
-  const [memoryCount, setMemoryCount] = useState<number>(0)
-  const [memoryStatus, setMemoryStatus] = useState<"loading" | "connected" | "error">("loading")
+  const [error, setError] = useState<string | null>(null)
+  const guest = session.kind === "guest"
 
-  // Check memory status
-  const checkMemoryStatus = async () => {
-    try {
-      const baseUrl = typeof window !== "undefined" ? window.location.origin : ""
-      const response = await fetch(`${baseUrl}/api/memory/status`)
-      const data = await response.json()
+  const signOut = async () => {
+    if (
+      guest &&
+      !window.confirm(
+        "You're a guest, so signing out means you can't get back to these memories. Sign out anyway?",
+      )
+    ) {
+      return
+    }
+    await fetch("/api/session", { method: "DELETE" })
+    onSignedOut()
+  }
 
-      if (data.status === "ok") {
-        setMemoryStatus("connected")
-        setMemoryCount(data.messagesStored || 0)
-      } else {
-        setMemoryStatus("error")
-        setMemoryCount(0)
-      }
-    } catch (error) {
-      setMemoryStatus("error")
-      setMemoryCount(0)
+  const forgetEverything = async () => {
+    if (!window.confirm("Delete all your messages and memories and start over? This can't be undone.")) return
+    const res = await fetch("/api/account", { method: "DELETE" })
+    if (res.ok || res.status === 401) {
+      onSignedOut()
+    } else {
+      setError("Could not delete your data. Please try again.")
     }
   }
 
-  useEffect(() => {
-    checkMemoryStatus()
-    // Update memory count every 30 seconds
-    const interval = setInterval(checkMemoryStatus, 30000)
-    return () => clearInterval(interval)
-  }, [])
-
-  const handleLogout = () => {
-    localStorage.removeItem("chat_user")
-    localStorage.removeItem("chatSessionId")
-    onLogout()
-  }
-
-  const getMemoryStatusColor = () => {
-    switch (memoryStatus) {
-      case "connected":
-        return "text-green-400"
-      case "error":
-        return "text-red-400"
-      default:
-        return "text-purple-400"
-    }
-  }
-
-  const getMemoryStatusIcon = () => {
-    switch (memoryStatus) {
-      case "connected":
-        return "✨"
-      case "error":
-        return "⚠️"
-      default:
-        return "🔄"
-    }
-  }
+  const itemClass = "flex w-full items-center rounded-lg px-3 py-2 text-left text-sm hover:bg-surface-raised"
 
   return (
     <div className="relative">
-      <Button variant="outline" onClick={() => setShowDropdown(!showDropdown)} className="flex items-center space-x-2">
-        <User className="h-4 w-4" />
-        <span className="hidden md:inline">{user.name}</span>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setShowDropdown(!showDropdown)}
+        aria-expanded={showDropdown}
+        aria-haspopup="menu"
+        aria-label={`Account menu for ${session.name}`}
+        className="flex items-center gap-2 bg-transparent font-mono text-xs"
+      >
+        <UserIcon className="h-3.5 w-3.5" aria-hidden="true" />
+        <span className="hidden sm:inline">{session.name.toLowerCase()}</span>
       </Button>
 
       {showDropdown && (
-        <div className="absolute right-0 mt-2 w-80 bg-white/10 backdrop-blur-md rounded-lg shadow-xl border border-white/20 z-50">
-          {/* User Info Header */}
-          <div className="p-4 border-b border-white/20">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center">
-                <User className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <p className="font-medium text-white">{user.name}</p>
-                <p className="text-sm text-white/70">{user.email}</p>
-              </div>
-            </div>
+        <div
+          role="menu"
+          className="absolute right-0 z-50 mt-2 w-72 rounded-xl border border-line bg-surface shadow-2xl shadow-black/40"
+        >
+          <div className="border-b border-line p-4">
+            <p className="font-medium">{session.name}</p>
+            <p className="mt-1 text-xs text-muted">
+              {guest ? "Guest · memories are kept in this browser only" : `Signed in as ${session.email ?? "email account"}`}
+            </p>
           </div>
-
-          {/* Memory & Session Status */}
-          <div className="p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Database className="h-4 w-4 text-purple-400" />
-                <span className="text-sm text-white/80">Eternal Memory</span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <span className={`text-sm ${getMemoryStatusColor()}`}>{memoryCount} memories</span>
-                <span className="text-sm">{getMemoryStatusIcon()}</span>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Sparkles className="h-4 w-4 text-purple-400" />
-                <span className="text-sm text-white/80">Session Active</span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <span className="text-xs text-green-400">🔒 Secured</span>
-              </div>
-            </div>
-
-            {/* Subtle session ID display for technical users */}
-            <details className="text-xs">
-              <summary className="cursor-pointer text-white/50 hover:text-white/70">Technical Details</summary>
-              <div className="mt-2 p-2 bg-black/20 rounded text-xs">
-                <div className="text-white/60">Session ID:</div>
-                <div className="font-mono text-white/80 break-all text-[10px]">{sessionId}</div>
-                <div className="text-white/50 mt-1">🔒 This ID never changes for your account</div>
-              </div>
-            </details>
-          </div>
-
-          {/* Actions */}
-          <div className="p-2 border-t border-white/20">
-            <button
-              onClick={() => setShowDropdown(false)}
-              className="flex items-center w-full px-3 py-2 text-sm text-white/70 hover:text-white hover:bg-white/10 rounded"
-            >
-              <Settings className="h-4 w-4 mr-2" />
-              Settings
+          <div className="p-2">
+            {canUpgrade && (
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setShowDropdown(false)
+                  onUpgrade()
+                }}
+                className={`${itemClass} text-star`}
+              >
+                <Mail className="mr-2 h-4 w-4" aria-hidden="true" />
+                Save your memories with email
+              </button>
+            )}
+            <button role="menuitem" onClick={signOut} className={itemClass}>
+              <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
+              Sign out
             </button>
-            <button
-              onClick={handleLogout}
-              className="flex items-center w-full px-3 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded"
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              Sign Out
+            <button role="menuitem" onClick={forgetEverything} className={`${itemClass} text-danger hover:bg-danger/10`}>
+              <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
+              Forget everything and start over
             </button>
+            {error && (
+              <p className="px-3 pb-2 text-xs text-danger" role="alert">
+                {error}
+              </p>
+            )}
           </div>
         </div>
       )}

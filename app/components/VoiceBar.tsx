@@ -1,0 +1,77 @@
+"use client"
+
+import type { VoiceStatus } from "../lib/voice/useVoiceConversation"
+
+const LABELS: Record<Exclude<VoiceStatus, "idle">, string> = {
+  connecting: "Opening the line…",
+  listening: "Listening…",
+  thinking: "Thinking…",
+  speaking: "Speaking… talk to interrupt",
+}
+
+interface VoiceBarProps {
+  status: Exclude<VoiceStatus, "idle">
+  partial: string
+  /** Shown instead of the transcript, e.g. when no sound is reaching the microphone. */
+  hint?: string | null
+  /** Microphone input level, 0 to 1. */
+  level: number
+  onEnd: () => void
+}
+
+// Relative heights of the meter bars, so it reads like a small waveform.
+const BARS = [0.45, 0.75, 1, 0.75, 0.45]
+
+/** Replaces the text box during a voice conversation. */
+export default function VoiceBar({ status, partial, hint, level, onEnd }: VoiceBarProps) {
+  const color = status === "listening" ? "var(--teal)" : "var(--star)"
+  return (
+    <div className="flex items-center gap-4 rounded-2xl border border-star/40 bg-[#0e1426] p-3 pl-4" role="group" aria-label="Voice conversation">
+      <svg viewBox="0 0 48 48" className={`h-12 w-12 shrink-0 orb-${status === "connecting" ? "thinking" : status}`} aria-hidden="true">
+        <circle cx="24" cy="24" r="20" fill={color} opacity="0.12" />
+        <circle cx="24" cy="24" r="12" fill={color} opacity="0.22" />
+        <path d="M24 10 L27 21 L38 24 L27 27 L24 38 L21 27 L10 24 L21 21 Z" fill={color} />
+      </svg>
+
+      <div className="min-w-0 flex-1" aria-live="polite">
+        <p className="font-mono text-xs tracking-wide" style={{ color }}>
+          {LABELS[status]}
+        </p>
+        {hint && !partial ? (
+          <p className="text-sm text-[#f7dca4]">{hint}</p>
+        ) : (
+          <p className="truncate text-sm text-text/90">
+            {partial || (status === "listening" ? "Go ahead, I'm listening." : "\u00a0")}
+          </p>
+        )}
+      </div>
+
+      {status === "listening" && (
+        <div
+          className="flex h-8 shrink-0 items-center gap-0.5"
+          role="meter"
+          aria-label="Microphone level"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(level * 100)}
+        >
+          {BARS.map((scale, i) => (
+            <span
+              key={i}
+              className="w-1 rounded-full bg-teal transition-[height] duration-100 motion-reduce:transition-none"
+              style={{ height: `${Math.max(12, Math.min(100, level * scale * 140))}%`, opacity: level > 0.02 ? 1 : 0.35 }}
+            />
+          ))}
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={onEnd}
+        className="shrink-0 rounded-xl border border-line px-3 py-2 text-sm hover:bg-surface-raised"
+      >
+        End <span className="hidden font-mono text-[11px] text-muted sm:inline">esc</span>
+      </button>
+    </div>
+  )
+}
