@@ -70,10 +70,18 @@ realtime at $0.39 per hour). The app counts it against the same daily budgets as
 1. Sign up at <https://resend.com> and create an API key with **Sending access** → `RESEND_API_KEY`.
 2. Without a domain, Resend's test sender (`onboarding@resend.dev`) only delivers to the email
    you signed up with, which is fine for local testing.
-3. To let anyone sign in with email: add your domain under **Domains**, create the DNS records
-   it shows, wait for "Verified", then set `EMAIL_FROM` to e.g. `Eternal Memories <hello@yourdomain.com>`
-   and `EMAIL_SIGNIN_ENABLED=true` in Vercel. Until then, leave it `false`: visitors can still
-   try the app as guests.
+3. To let anyone sign in with email you need your own domain. This project uses
+   `eternalmemories.space` (registered at Hostinger, with DNS hosted by Vercel):
+   - In Vercel → project → **Domains**, add the domain, then at the registrar replace the
+     nameservers with the two Vercel nameservers shown on the domain's **Vercel DNS** tab.
+   - In Resend → **Domains**, add the domain and copy each DNS record it lists into Vercel →
+     **Domains → (domain) → DNS Records**. Wait for Resend to show "Verified".
+   - In Vercel environment variables set `RESEND_API_KEY`, `EMAIL_FROM=Eternal Memories <hello@eternalmemories.space>`,
+     `EMAIL_SIGNIN_ENABLED=true` and `NEXT_PUBLIC_SITE_URL=https://www.eternalmemories.space` (Vercel serves
+     `www` as the main address and redirects the bare domain to it), then redeploy.
+
+   Until a domain is verified, leave `EMAIL_SIGNIN_ENABLED` off: visitors can still try the app
+   as guests.
 
 ## 8. Local env file
 

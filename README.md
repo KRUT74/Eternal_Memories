@@ -6,7 +6,7 @@ days or weeks later. Every memory is visible, and you can make it forget any of 
 
 ![Chatting with Eternal Memories: the reply draws on remembered facts, shown as gold stars](docs/screenshots/chat.png)
 
-**Live demo:** coming soon · **Built by** Benjapon Kruthanooch
+**Live demo:** [eternalmemories.space](https://eternalmemories.space) · **Built by** Benjapon Kruthanooch
 
 ## What it does
 
@@ -17,8 +17,10 @@ days or weeks later. Every memory is visible, and you can make it forget any of 
   loud sentence by sentence, and stops when you talk over it, like a real conversation.
 - **Your constellation.** A star map and list of everything it remembers. Gold stars shaped the
   last reply and teal ones are new. Remove a single memory or erase everything.
-- **Private by design.** No account needed. Each browser gets its own signed, httpOnly
-  session, and nothing is shared between visitors.
+- **Sign in your way.** Use an emailed 6-digit code to keep your memories on any device, or
+  just try it as a guest. A guest who adds an email later keeps everything.
+- **Private by design.** Identity lives in a signed, httpOnly session cookie, sign-in codes
+  are stored only as hashes, and nothing is shared between visitors.
 
 | Voice conversation | On a phone |
 | --- | --- |
@@ -109,13 +111,17 @@ workspace and the ElevenLabs key act as a final backstop.
 Measured costs: about **$0.004 per text reply** (reply plus memory extraction), about **$0.002
 per spoken sentence**, and **$0.03 per 5 minutes of listening**.
 
-Sessions are random IDs in an HMAC-signed, httpOnly, `SameSite=Lax` cookie. Every API route
+Sessions are IDs in an HMAC-signed, httpOnly, `SameSite=Lax` cookie: random for guests,
+stable for email accounts. Sign-in codes are 6 digits, stored only as HMACs, valid for 10
+minutes, single use, locked after 5 wrong tries (checked atomically in Postgres) and rate
+limited per address and per network. The request endpoint answers identically for known and
+unknown addresses, so it can't be used to find out who has an account. Every API route
 takes the user from the cookie and never from the request, and Supabase tables have row-level
 security on with no policies, so only the server's secret key can reach them.
 
 ## Tech stack
 
-Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS 4 · Anthropic SDK (Claude Sonnet
+Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS 4 · Resend · Anthropic SDK (Claude Sonnet
 5.5 and Haiku 5.5) · Supabase Postgres + pgvector + Edge Functions · ElevenLabs (Scribe v2
 Realtime, Flash v2.5) · Playwright + axe-core · Vercel
 
