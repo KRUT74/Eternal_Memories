@@ -13,6 +13,8 @@ const fakeMicArgs = ["--use-fake-ui-for-media-stream", "--use-fake-device-for-me
 export default defineConfig({
   testDir: "tests/e2e",
   fullyParallel: true,
+  // More parallel browsers than this starts timing out on a laptop.
+  workers: process.env.CI ? 2 : 4,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? "github" : "list",
   use: {
@@ -44,6 +46,13 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
     // Generous limits so repeated test runs don't trip the demo's own protections.
-    env: { DEMO_IP_SESSIONS_PER_DAY: "1000", DEMO_IP_CHATS_PER_DAY: "1000" },
+    // The mocked tests sign their own session cookies with this test-only secret,
+    // and email sign-in is switched on so its UI can be tested.
+    env: {
+      DEMO_IP_SESSIONS_PER_DAY: "1000",
+      DEMO_IP_CHATS_PER_DAY: "1000",
+      SESSION_SECRET: "e2e-test-session-secret-not-for-production-0123456789",
+      EMAIL_SIGNIN_ENABLED: "true",
+    },
   },
 })

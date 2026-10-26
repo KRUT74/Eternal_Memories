@@ -1,9 +1,10 @@
-import Home from "./components/Home"
+import Landing from "./components/Landing"
+import { env } from "@/lib/server/env"
 import { getSession } from "@/lib/server/session"
 
-// Reads the session cookie, so new visitors (and crawlers) get the welcome
-// screen in the server-rendered HTML instead of a loading state.
+// Landing page with sign-in. Server-rendered so visitors and crawlers see it
+// straight away; a returning visitor gets a "Continue" button instead of the form.
 export default async function Page() {
   const session = await getSession()
-  return <Home initialName={session?.name ?? null} />
+  return <Landing signedInAs={session?.name ?? null} emailSignInEnabled={env.emailSignInEnabled} />
 }

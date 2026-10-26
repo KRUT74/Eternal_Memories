@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { deleteAllUserData } from "@/lib/server/memory"
+import { env } from "@/lib/server/env"
 import { endSession, getSession, ipHash, renameSession, startSession, unauthorized } from "@/lib/server/session"
 import { checkSessionAllowed, limitResponse, recordUsage, remainingToday } from "@/lib/server/usage"
 
@@ -9,7 +9,13 @@ const NameSchema = z.object({ name: z.string().trim().min(1).max(40) })
 export async function GET(req: Request) {
   const session = await getSession()
   if (!session) return unauthorized()
-  return Response.json({ name: session.name, remainingToday: await remainingToday(session.userId, ipHash(req)) })
+  return Response.json({
+    name: session.name,
+    kind: session.kind,
+    email: session.email ?? null,
+    emailSignInEnabled: env.emailSignInEnabled,
+    remainingToday: await remainingToday(session.userId, ipHash(req)),
+  })
 }
 
 /** Starts a session for a new visitor, or renames the current one. */
@@ -32,11 +38,8 @@ export async function POST(req: Request) {
   return Response.json({ name: session.name }, { status: 201 })
 }
 
-/** "Forget everything": deletes the visitor's messages and memories and clears the cookie. */
+/** Signs out of this browser. Email accounts keep their data; a guest's data becomes unreachable. */
 export async function DELETE() {
-  const session = await getSession()
-  if (!session) return unauthorized()
-  await deleteAllUserData(session.userId)
   await endSession()
   return new Response(null, { status: 204 })
 }

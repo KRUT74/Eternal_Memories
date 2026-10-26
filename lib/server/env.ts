@@ -25,6 +25,16 @@ export const env = {
   get elevenLabsVoiceId() {
     return required("ELEVENLABS_VOICE_ID")
   },
+  get resendApiKey() {
+    return required("RESEND_API_KEY")
+  },
+  get emailFrom() {
+    return process.env.EMAIL_FROM || "Eternal Memories <onboarding@resend.dev>"
+  },
+  /** Off until a sending domain is verified in Resend; guests can always sign in. */
+  get emailSignInEnabled() {
+    return process.env.EMAIL_SIGNIN_ENABLED === "true"
+  },
   get sessionSecret() {
     const value = required("SESSION_SECRET")
     if (value.length < 32) throw new Error("SESSION_SECRET must be at least 32 characters")

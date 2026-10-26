@@ -22,6 +22,7 @@ Open **SQL Editor** → **Create a new snippet**, and run each file in
 1. `20261025000000_memory.sql`: `messages`, `memories` and the memory search function
 2. `20261026000000_usage_limits.sql`: the usage log behind rate limits and the daily budget
 3. `20261027000000_voice_usage.sql`: logs voice costs and adds the per-visitor spend cap
+4. `20261027100000_accounts.sql`: email accounts and one-time sign-in codes
 
 Each should report "Success. No rows returned."
 
@@ -64,7 +65,17 @@ CLI alternative: `npx supabase@2.122.0 login`, then
 Voice costs roughly $0.02 per spoken turn (Flash v2.5 at $0.05 per 1K characters plus Scribe
 realtime at $0.39 per hour). The app counts it against the same daily budgets as chat.
 
-## 7. Local env file
+## 7. Resend (email sign-in codes)
+
+1. Sign up at <https://resend.com> and create an API key with **Sending access** → `RESEND_API_KEY`.
+2. Without a domain, Resend's test sender (`onboarding@resend.dev`) only delivers to the email
+   you signed up with, which is fine for local testing.
+3. To let anyone sign in with email: add your domain under **Domains**, create the DNS records
+   it shows, wait for "Verified", then set `EMAIL_FROM` to e.g. `Eternal Memories <hello@yourdomain.com>`
+   and `EMAIL_SIGNIN_ENABLED=true` in Vercel. Until then, leave it `false`: visitors can still
+   try the app as guests.
+
+## 8. Local env file
 
 ```bash
 cp .env.example .env.local
@@ -75,7 +86,7 @@ another `openssl rand -hex 32`. The optional `DEMO_*` settings tune the demo lim
 defaults are a $2 rolling-24-hour budget for the whole demo, $0.30 per visitor, 5 messages a
 minute and 40 a day per visitor, and 100 messages and 5 new sessions a day per network.
 
-## 8. Check the embedding function
+## 9. Check the embedding function
 
 ```bash
 curl -s -X POST "https://<project ref>.supabase.co/functions/v1/embed" -H "Content-Type: application/json" -H "apikey: <SUPABASE_SECRET_KEY>" -H "x-embed-secret: <secret from step 3>" -d '{"input":"hello"}' | head -c 120

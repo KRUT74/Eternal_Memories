@@ -1,12 +1,14 @@
 import { expect, test } from "@playwright/test"
 import { MEMORIES, NEW_MEMORY, REPLY, mockBackend, startSession } from "./mocks"
 
-test("a new visitor sees the welcome screen and how it works", async ({ page }) => {
+test("a new visitor sees the landing page with sign-in and how it works", async ({ page }) => {
   await mockBackend(page)
   await page.goto("/")
-  await expect(page.getByRole("heading", { name: /Every conversation leaves a star/ })).toBeVisible()
+  await expect(page.getByRole("heading", { level: 1, name: /Every conversation leaves a star/ })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Sign in to your constellation" })).toBeVisible()
   await expect(page.getByRole("heading", { name: "How it works" })).toBeVisible()
-  await expect(page.getByRole("button", { name: "Begin" })).toBeDisabled()
+  await expect(page.getByRole("button", { name: "Email me a sign-in code" })).toBeDisabled()
+  await expect(page.getByRole("link", { name: "privacy" })).toBeVisible()
 })
 
 test("chatting streams a reply and shows the memories it used and added", async ({ page }) => {
@@ -63,7 +65,7 @@ test("forget everything returns to the welcome screen", async ({ page }) => {
   page.once("dialog", (dialog) => dialog.accept())
   await page.getByRole("button", { name: "Account menu for Sam" }).click()
   await page.getByRole("menuitem", { name: /Forget everything/ }).click()
-  await expect(page.getByLabel("What should I call you?")).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Sign in to your constellation" })).toBeVisible()
 })
 
 test.describe("on a phone", () => {

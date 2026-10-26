@@ -8,9 +8,23 @@ async function expectNoViolations(page: Page) {
   expect(summary).toEqual([])
 }
 
-test("welcome screen has no WCAG A/AA violations", async ({ page }) => {
+test("landing page has no WCAG A/AA violations", async ({ page }) => {
   await mockBackend(page)
   await page.goto("/")
+  await expectNoViolations(page)
+})
+
+test("the code entry step has no WCAG A/AA violations", async ({ page }) => {
+  await mockBackend(page)
+  await page.goto("/")
+  await page.getByLabel("Email", { exact: true }).fill("sam@example.com")
+  await page.getByRole("button", { name: "Email me a sign-in code" }).click()
+  await page.getByLabel("6-digit code").waitFor()
+  await expectNoViolations(page)
+})
+
+test("privacy page has no WCAG A/AA violations", async ({ page }) => {
+  await page.goto("/privacy")
   await expectNoViolations(page)
 })
 

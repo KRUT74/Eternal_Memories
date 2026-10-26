@@ -1,4 +1,18 @@
-import type { Page } from "@playwright/test"
+import { createHmac } from "node:crypto"
+import type { BrowserContext, Page } from "@playwright/test"
+
+/** Must match SESSION_SECRET in playwright.config.ts's webServer env. */
+export const TEST_SESSION_SECRET = "e2e-test-session-secret-not-for-production-0123456789"
+const BASE_URL = "http://localhost:3200"
+
+/** A session cookie signed the same way as lib/server/session.ts, so the server accepts it. */
+export async function signInAs(context: BrowserContext, kind: "guest" | "email", name = "Sam") {
+  const payload = Buffer.from(
+    JSON.stringify({ u: kind === "email" ? "a_test" : "u_test", n: name, k: kind, e: kind === "email" ? "sa•••@example.com" : undefined }),
+  ).toString("base64url")
+  const signature = createHmac("sha256", TEST_SESSION_SECRET).update(payload).digest("base64url")
+  await context.addCookies([{ name: "em_session", value: `${payload}.${signature}`, url: BASE_URL, httpOnly: true, sameSite: "Lax" }])
+}
 
 export interface MockMemory {
   id: string
@@ -26,26 +40,49 @@ export const REPLY = "One skipped long run won't undo weeks of training for Marc
  * Returns mutable state so tests can inspect what the app sent.
  */
 export async function mockBackend(page: Page, options: { remainingToday?: number; chatStatus?: number } = {}) {
+  const context = page.context()
   const state = {
-    signedIn: false,
     memories: [...MEMORIES],
     chatBodies: [] as Array<{ message: string; mode?: string }>,
     deleted: [] as string[],
+    codeRequests: [] as string[],
+    kind: "guest" as "guest" | "email",
   }
 
   await page.route("**/api/session", async (route) => {
     const method = route.request().method()
     if (method === "POST") {
-      state.signedIn = true
+      await signInAs(context, "guest", route.request().postDataJSON().name)
       return route.fulfill({ status: 201, json: { name: route.request().postDataJSON().name } })
     }
     if (method === "DELETE") {
-      state.signedIn = false
+      await context.clearCookies()
       return route.fulfill({ status: 204 })
     }
-    return state.signedIn
-      ? route.fulfill({ json: { name: "Sam", remainingToday: options.remainingToday ?? 40 } })
+    const cookies = await context.cookies(BASE_URL)
+    return cookies.some((c) => c.name === "em_session")
+      ? route.fulfill({ json: { name: "Sam", kind: state.kind, remainingToday: options.remainingToday ?? 40 } })
       : route.fulfill({ status: 401, json: { error: "No session" } })
+  })
+
+  await page.route("**/api/account", async (route) => {
+    await context.clearCookies()
+    return route.fulfill({ status: 204 })
+  })
+
+  // Email sign-in: any address gets a code; the code 123456 is correct.
+  await page.route("**/api/auth/request-code", async (route) => {
+    state.codeRequests.push(route.request().postDataJSON().email)
+    return route.fulfill({ json: { sent: true, message: "If that address is valid, a code is on its way." } })
+  })
+  await page.route("**/api/auth/verify", async (route) => {
+    const { code } = route.request().postDataJSON()
+    if (code !== "123456") {
+      return route.fulfill({ status: 400, json: { error: "That code isn't right. Check the email and try again.", reason: "invalid" } })
+    }
+    state.kind = "email"
+    await signInAs(context, "email")
+    return route.fulfill({ json: { name: "Sam", email: "sa•••@example.com", isNew: false } })
   })
 
   await page.route("**/api/history", (route) => route.fulfill({ json: { messages: [] } }))
@@ -81,11 +118,10 @@ export async function mockBackend(page: Page, options: { remainingToday?: number
   return state
 }
 
-/** Starts a session through the welcome form. */
+/** Opens the app as a signed-in guest (a real signed cookie; the API is mocked). */
 export async function startSession(page: Page, name = "Sam") {
-  await page.goto("/")
-  await page.getByLabel("What should I call you?").fill(name)
-  await page.getByRole("button", { name: "Begin" }).click()
+  await signInAs(page.context(), "guest", name)
+  await page.goto("/app")
   await page.getByRole("textbox", { name: "Message" }).waitFor()
 }
 
