@@ -14,12 +14,12 @@ const STARS = [
 ]
 
 interface LandingProps {
-  /** The visitor's name when they already have a session. */
-  signedInAs: string | null
+  /** The visitor's session, if they already have one. */
+  session: { name: string; kind: "guest" | "email" } | null
   emailSignInEnabled: boolean
 }
 
-export default function Landing({ signedInAs, emailSignInEnabled }: LandingProps) {
+export default function Landing({ session, emailSignInEnabled }: LandingProps) {
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col px-4 sm:px-6">
       <header className="flex items-center justify-between py-5">
@@ -58,16 +58,26 @@ export default function Landing({ signedInAs, emailSignInEnabled }: LandingProps
           </div>
 
           <div className="mx-auto w-full max-w-md">
-            {signedInAs ? (
-              <div className="rounded-3xl border border-line bg-surface p-8">
-                <h2 className="font-serif text-3xl">Welcome back, {signedInAs}</h2>
-                <p className="mt-2 text-muted">Your constellation is right where you left it.</p>
-                <Link
-                  href="/app"
-                  className="mt-6 flex h-11 items-center justify-center gap-2 rounded-md bg-star font-medium text-[#1a1405] hover:brightness-110"
-                >
-                  Continue <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </Link>
+            {session ? (
+              <div className="space-y-4">
+                <div className="rounded-3xl border border-line bg-surface p-8">
+                  <h2 className="font-serif text-3xl">Welcome back, {session.name}</h2>
+                  <p className="mt-2 text-muted">
+                    {session.kind === "guest"
+                      ? "Your constellation is saved in this browser."
+                      : "Your constellation is right where you left it."}
+                  </p>
+                  <Link
+                    href="/app"
+                    className="mt-6 flex h-11 items-center justify-center gap-2 rounded-md bg-star font-medium text-[#1a1405] hover:brightness-110"
+                  >
+                    Continue <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </Link>
+                </div>
+                {/* Guests can attach an email here, bringing this browser's memories with them. */}
+                {session.kind === "guest" && emailSignInEnabled && (
+                  <SignInCard mode="upgrade" emailSignInEnabled={emailSignInEnabled} />
+                )}
               </div>
             ) : (
               <SignInCard mode="landing" emailSignInEnabled={emailSignInEnabled} />

@@ -6,5 +6,10 @@ import { getSession } from "@/lib/server/session"
 // straight away; a returning visitor gets a "Continue" button instead of the form.
 export default async function Page() {
   const session = await getSession()
-  return <Landing signedInAs={session?.name ?? null} emailSignInEnabled={env.emailSignInEnabled} />
+  return (
+    <Landing
+      session={session ? { name: session.name, kind: session.kind } : null}
+      emailSignInEnabled={env.emailSignInEnabled}
+    />
+  )
 }

@@ -88,3 +88,18 @@ test("the privacy page explains what is stored", async ({ page }) => {
   await expect(page.getByRole("heading", { level: 1, name: "Privacy" })).toBeVisible()
   await expect(page.getByText(/Forget everything/)).toBeVisible()
 })
+
+test("a returning guest can add their email right from the main page", async ({ page }) => {
+  await mockBackend(page)
+  await signInAs(page.context(), "guest", "Sam")
+  await page.goto("/")
+  await expect(page.getByRole("heading", { name: "Welcome back, Sam" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Keep your memories on any device" })).toBeVisible()
+  await page.getByLabel("Email", { exact: true }).fill("sam@example.com")
+  await page.getByRole("button", { name: "Email me a sign-in code" }).click()
+  await page.getByLabel("6-digit code").fill("123456")
+  await page.getByRole("button", { name: "Sign in" }).click()
+  await expect(page).toHaveURL(/\/app$/)
+  await page.getByRole("button", { name: "Account menu for Sam" }).click()
+  await expect(page.getByText("Signed in as sa•••@example.com")).toBeVisible()
+})
