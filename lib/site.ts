@@ -5,6 +5,6 @@ export const SITE_URL = (
 ).replace(/\/$/, "")
 
 export const SITE_NAME = "Eternal Memories"
-export const SITE_TITLE = "Eternal Memories: an AI companion that remembers"
+export const SITE_TITLE = "Eternal Memories: an AI companion with persistent memory"
 export const SITE_DESCRIPTION =
-  "Talk or type with an AI companion that remembers the people, plans and things you care about, across every conversation. Built with Claude, Supabase pgvector and ElevenLabs voice."
+  "A memory-persistent AI companion that remembers for you: the people, plans and details you care about, brought back the moment they matter. Built with Claude, Supabase pgvector and ElevenLabs voice."

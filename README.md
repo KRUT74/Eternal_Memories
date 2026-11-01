@@ -1,8 +1,8 @@
 # Eternal Memories
 
-**An AI companion that remembers.** Talk or type with it, and it keeps the people, plans and
-things you care about as a constellation of memories, then brings them up when they matter,
-days or weeks later. Every memory is visible, and you can make it forget any of them.
+**Every conversation leaves a memory.** A memory-persistent AI companion that remembers for you:
+the people, plans and details you care about, kept as a constellation of memories and brought back
+the moment they matter, days or weeks later. Talk or type with it. Every memory is visible, and you can make it forget any of them.
 
 ![Chatting with Eternal Memories: the reply draws on remembered facts, shown as gold stars](docs/screenshots/chat.png)
 

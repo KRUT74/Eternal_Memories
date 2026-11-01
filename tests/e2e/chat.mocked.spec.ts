@@ -4,7 +4,7 @@ import { MEMORIES, NEW_MEMORY, REPLY, mockBackend, startSession } from "./mocks"
 test("a new visitor sees the landing page with sign-in and how it works", async ({ page }) => {
   await mockBackend(page)
   await page.goto("/")
-  await expect(page.getByRole("heading", { level: 1, name: /Every conversation leaves a star/ })).toBeVisible()
+  await expect(page.getByRole("heading", { level: 1, name: /Every conversation leaves a memory/ })).toBeVisible()
   await expect(page.getByRole("heading", { name: "Sign in to your constellation" })).toBeVisible()
   await expect(page.getByRole("heading", { name: "How it works" })).toBeVisible()
   await expect(page.getByRole("button", { name: "Email me a sign-in code" })).toBeDisabled()

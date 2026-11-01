@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og"
 import { SITE_DESCRIPTION } from "@/lib/site"
 
-export const alt = "Eternal Memories: an AI companion that remembers, shown as a constellation of stars"
+export const alt = "Eternal Memories: an AI companion with persistent memory, shown as a constellation of stars"
 export const size = { width: 1200, height: 630 }
 export const contentType = "image/png"
 
@@ -42,7 +42,7 @@ export default function OpengraphImage() {
         </svg>
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 80px", width: 700 }}>
           <div style={{ fontSize: 30, color: "#f2c46d", letterSpacing: 4, fontFamily: "monospace" }}>ETERNAL MEMORIES</div>
-          <div style={{ fontSize: 76, lineHeight: 1.05, marginTop: 24 }}>Every conversation leaves a star.</div>
+          <div style={{ fontSize: 76, lineHeight: 1.05, marginTop: 24 }}>Every conversation leaves a memory.</div>
           <div style={{ fontSize: 28, lineHeight: 1.4, marginTop: 28, color: "#9aa2b9", fontFamily: "sans-serif" }}>
             {`${SITE_DESCRIPTION.split(". Built")[0]}.`}
           </div>

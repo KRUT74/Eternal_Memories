@@ -38,11 +38,11 @@ export default function Landing({ session, emailSignInEnabled }: LandingProps) {
         <section className="grid items-center gap-10 py-8 sm:py-14 lg:grid-cols-[1.1fr_1fr]">
           <div>
             <h1 className="font-serif text-5xl leading-[1.02] text-balance sm:text-6xl">
-              Every conversation <i className="text-star">leaves a star.</i>
+              Every conversation <i className="text-star">leaves a memory.</i>
             </h1>
             <p className="mt-5 max-w-xl text-lg text-muted">
-              Talk or type with an AI companion that remembers the people, plans and things you care about, and
-              brings them up when they matter, days or weeks later.
+              A memory-persistent AI companion that remembers for you: the people, plans and details you care
+              about, brought back the moment they matter.
             </p>
             <svg viewBox="0 0 370 220" className="mt-8 hidden w-full max-w-md sm:block" aria-hidden="true">
               {STARS.slice(1).map((s, i) => (

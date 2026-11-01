@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   description: SITE_DESCRIPTION,
   applicationName: SITE_NAME,
   authors: [{ name: "Benjapon Kruthanooch" }],
-  keywords: ["AI companion", "long-term memory", "Claude", "voice AI", "ElevenLabs", "Supabase pgvector", "Next.js"],
+  keywords: ["AI companion", "persistent memory", "long-term memory", "Claude", "voice AI", "ElevenLabs", "Supabase pgvector", "Next.js"],
   alternates: { canonical: "/" },
   openGraph: {
     type: "website",
