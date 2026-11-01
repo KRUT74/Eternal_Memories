@@ -19,6 +19,9 @@ the moment they matter, days or weeks later. Talk or type with it. Every memory 
   last reply and teal ones are new. Remove a single memory or erase everything.
 - **Sign in your way.** Use an emailed 6-digit code to keep your memories on any device, or
   just try it as a guest. A guest who adds an email later keeps everything.
+- **Sign in with your face.** After the first email sign-in, turn on face sign-in and come back
+  with Face ID, a fingerprint or the device PIN: no email or code to remember. It uses
+  passkeys, so the face never leaves the device and the app stores no biometric data.
 - **Private by design.** Identity lives in a signed, httpOnly session cookie, sign-in codes
   are stored only as hashes, and nothing is shared between visitors.
 
@@ -123,9 +126,15 @@ unknown addresses, so it can't be used to find out who has an account. Every API
 takes the user from the cookie and never from the request, and Supabase tables have row-level
 security on with no policies, so only the server's secret key can reach them.
 
+Face sign-in is WebAuthn (passkeys via SimpleWebAuthn): discoverable credentials with user
+verification required, so the device unlocks them with face, fingerprint or PIN. Only the public
+key is stored. Each challenge is single use (consumed atomically in Postgres), expires after 5
+minutes and is rate limited per network, and the request's origin must be the site's own
+address.
+
 ## Tech stack
 
-Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS 4 · Resend · Anthropic SDK (Claude Sonnet
+Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS 4 · Resend · SimpleWebAuthn · Anthropic SDK (Claude Sonnet
 5.5 and Haiku 5.5) · Supabase Postgres + pgvector + Edge Functions · ElevenLabs (Scribe v2
 Realtime, Flash v2.5) · Playwright + axe-core · Vercel
 

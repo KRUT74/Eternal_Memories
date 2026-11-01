@@ -53,6 +53,7 @@ export default defineConfig({
       DEMO_IP_CHATS_PER_DAY: "1000",
       SESSION_SECRET: "e2e-test-session-secret-not-for-production-0123456789",
       EMAIL_SIGNIN_ENABLED: "true",
+      PASSKEYS_ENABLED: "true",
     },
   },
 })

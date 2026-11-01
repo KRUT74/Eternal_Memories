@@ -10,6 +10,7 @@ export default async function Page() {
     <Landing
       session={session ? { name: session.name, kind: session.kind } : null}
       emailSignInEnabled={env.emailSignInEnabled}
+      passkeysEnabled={env.passkeysEnabled}
     />
   )
 }

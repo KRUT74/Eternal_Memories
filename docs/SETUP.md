@@ -23,6 +23,7 @@ Open **SQL Editor** → **Create a new snippet**, and run each file in
 2. `20261026000000_usage_limits.sql`: the usage log behind rate limits and the daily budget
 3. `20261027000000_voice_usage.sql`: logs voice costs and adds the per-visitor spend cap
 4. `20261027100000_accounts.sql`: email accounts and one-time sign-in codes
+5. `20261102000000_passkeys.sql`: face sign-in passkeys (public keys only) and their one-time challenges
 
 Each should report "Success. No rows returned."
 
@@ -85,6 +86,15 @@ realtime at $0.39 per hour). The app counts it against the same daily budgets as
 
    Until a domain is verified, leave `EMAIL_SIGNIN_ENABLED` off: visitors can still try the app
    as guests.
+
+## 7b. Face sign-in (passkeys)
+
+No extra service is needed: the person's own device checks their face (Face ID, Windows Hello,
+Android face unlock, or a fingerprint or PIN) and the server checks the passkey's signature with
+`@simplewebauthn/server`. After running the passkeys migration, set `PASSKEYS_ENABLED=true`
+locally and in Vercel, then redeploy. Passkeys are tied to the address they were made on: one
+made on `eternalmemories.space` works only there (and syncs across the person's Apple or Google
+devices); one made on a preview URL works only on that preview.
 
 ## 8. Local env file
 

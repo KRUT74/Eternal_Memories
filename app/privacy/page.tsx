@@ -32,6 +32,16 @@ export default function PrivacyPage() {
         </section>
 
         <section>
+          <h2>Face sign-in</h2>
+          <p>
+            Face sign-in uses a passkey. Your phone or computer checks your face (or fingerprint, or PIN) itself, and
+            your face never leaves your device. This app stores no face images or face data, only a public key that
+            lets it check your device&apos;s signature, plus the device type (e.g. “iPhone”) and when it was last used.
+            You can turn it off in the account menu, and deleting your data removes it too.
+          </p>
+        </section>
+
+        <section>
           <h2>Who processes it</h2>
           <ul>
             <li><strong>Supabase</strong> stores the data above.</li>

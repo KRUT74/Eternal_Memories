@@ -3,7 +3,8 @@
 import type React from "react"
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, ScanFace } from "lucide-react"
+import { signInWithFace, useFaceSupport } from "../lib/faceSignIn"
 import { Button } from "./ui/button"
 import { Input } from "./ui/input"
 
@@ -11,6 +12,8 @@ interface SignInCardProps {
   /** "landing": email or guest. "upgrade": a guest adding an email to keep their memories. */
   mode: "landing" | "upgrade"
   emailSignInEnabled: boolean
+  /** Face sign-in (passkeys) is switched on for this site. */
+  passkeysEnabled?: boolean
   onSignedIn?: () => void
   onCancel?: () => void
 }
@@ -23,7 +26,7 @@ async function postJson(url: string, body: unknown) {
   return { ok: res.ok, data }
 }
 
-export default function SignInCard({ mode, emailSignInEnabled, onSignedIn, onCancel }: SignInCardProps) {
+export default function SignInCard({ mode, emailSignInEnabled, passkeysEnabled = false, onSignedIn, onCancel }: SignInCardProps) {
   const router = useRouter()
   const signedIn = () => (onSignedIn ? onSignedIn() : router.push("/app"))
   const [step, setStep] = useState<"start" | "code">("start")
@@ -31,11 +34,13 @@ export default function SignInCard({ mode, emailSignInEnabled, onSignedIn, onCan
   const [name, setName] = useState("")
   const [guestName, setGuestName] = useState("")
   const [code, setCode] = useState("")
-  const [busy, setBusy] = useState<"email" | "code" | "guest" | null>(null)
+  const [busy, setBusy] = useState<"face" | "email" | "code" | "guest" | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [resendIn, setResendIn] = useState(0)
   const codeRef = useRef<HTMLInputElement>(null)
+  const faceSupport = useFaceSupport()
+  const showFace = mode === "landing" && passkeysEnabled && faceSupport.signIn
 
   useEffect(() => {
     if (resendIn <= 0) return
@@ -46,6 +51,17 @@ export default function SignInCard({ mode, emailSignInEnabled, onSignedIn, onCan
   useEffect(() => {
     if (step === "code") codeRef.current?.focus()
   }, [step])
+
+  const faceSignIn = async () => {
+    setError(null)
+    setBusy("face")
+    const result = await signInWithFace()
+    if (!result.ok) {
+      setBusy(null)
+      return setError(result.error)
+    }
+    signedIn()
+  }
 
   const sendCode = async (e?: React.FormEvent) => {
     e?.preventDefault()
@@ -114,8 +130,27 @@ export default function SignInCard({ mode, emailSignInEnabled, onSignedIn, onCan
         </div>
       )}
 
+      {step === "start" && showFace && (
+        <div className="mt-6">
+          <Button type="button" onClick={faceSignIn} disabled={busy !== null} className="h-14 w-full gap-2.5 text-lg">
+            <ScanFace className="h-6 w-6" aria-hidden="true" />
+            {busy === "face" ? "Look at your device…" : "Sign in with your face"}
+          </Button>
+          <p className="mt-2 text-center text-xs text-muted">
+            Face ID, fingerprint or your device PIN. Set it up after your first email sign-in.
+          </p>
+          {emailSignInEnabled && (
+            <div className="mt-6 flex items-center gap-3 font-mono text-[11px] text-muted" aria-hidden="true">
+              <span className="h-px flex-1 bg-line" />
+              or use your email
+              <span className="h-px flex-1 bg-line" />
+            </div>
+          )}
+        </div>
+      )}
+
       {step === "start" && emailSignInEnabled && (
-        <form onSubmit={sendCode} className="mt-6 space-y-3">
+        <form onSubmit={sendCode} className={showFace ? "mt-4 space-y-3" : "mt-6 space-y-3"}>
           <div>
             <label htmlFor="email" className="mb-1.5 block text-sm font-medium">
               Email
@@ -147,7 +182,12 @@ export default function SignInCard({ mode, emailSignInEnabled, onSignedIn, onCan
               />
             </div>
           )}
-          <Button type="submit" disabled={busy !== null || !email.trim()} className="h-11 w-full text-base">
+          <Button
+            type="submit"
+            variant={showFace ? "outline" : "default"}
+            disabled={busy !== null || !email.trim()}
+            className={`h-11 w-full text-base ${showFace ? "bg-transparent" : ""}`}
+          >
             {busy === "email" ? "Sending…" : "Email me a sign-in code"}
           </Button>
         </form>

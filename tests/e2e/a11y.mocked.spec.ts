@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright"
 import { expect, test, type Page } from "@playwright/test"
-import { mockBackend, startSession } from "./mocks"
+import { addVirtualAuthenticator, mockBackend, signInAs, startSession } from "./mocks"
 
 async function expectNoViolations(page: Page) {
   const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"]).analyze()
@@ -60,4 +60,13 @@ test("the constellation can be explored with the keyboard", async ({ page }) => 
   // Stars are in the order they were learned; Shift+Tab walks back to the previous one.
   await page.keyboard.press("Shift+Tab")
   await expect(page.locator("#constellation-panel li[data-active]")).toHaveText("They are training for a half marathon in March.")
+})
+
+test("the face sign-in prompt has no WCAG A/AA violations", async ({ page }) => {
+  await mockBackend(page)
+  await addVirtualAuthenticator(page)
+  await signInAs(page.context(), "email")
+  await page.goto("/app")
+  await page.getByRole("button", { name: "Set up face sign-in" }).waitFor()
+  await expectNoViolations(page)
 })

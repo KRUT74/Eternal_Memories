@@ -2,17 +2,26 @@
 
 import { useState } from "react"
 import { Button } from "./ui/button"
-import { LogOut, Mail, Trash2, User as UserIcon } from "lucide-react"
+import { LogOut, Mail, ScanFace, Trash2, User as UserIcon, X } from "lucide-react"
 import type { AppSession } from "./Home"
+import type { Passkey } from "../lib/faceSignIn"
 
 interface UserProfileProps {
   session: AppSession
   canUpgrade: boolean
   onUpgrade: () => void
   onSignedOut: () => void
+  /** Face sign-in controls, for email accounts when the feature is on. */
+  faceSignIn?: {
+    passkeys: Passkey[]
+    /** This device can unlock a passkey with face, fingerprint or PIN. */
+    canSetUp: boolean
+    onSetUp: () => Promise<{ ok: true } | { ok: false; error: string }>
+    onRemove: (id: string) => Promise<boolean>
+  }
 }
 
-export default function UserProfile({ session, canUpgrade, onUpgrade, onSignedOut }: UserProfileProps) {
+export default function UserProfile({ session, canUpgrade, onUpgrade, onSignedOut, faceSignIn }: UserProfileProps) {
   const [showDropdown, setShowDropdown] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const guest = session.kind === "guest"
@@ -38,6 +47,20 @@ export default function UserProfile({ session, canUpgrade, onUpgrade, onSignedOu
     } else {
       setError("Could not delete your data. Please try again.")
     }
+  }
+
+  const setUpFace = async () => {
+    if (!faceSignIn) return
+    setError(null)
+    const result = await faceSignIn.onSetUp()
+    if (!result.ok) setError(result.error)
+  }
+
+  const removeFace = async (passkey: Passkey) => {
+    if (!faceSignIn) return
+    if (!window.confirm(`Turn off face sign-in on ${passkey.device_label}? You can still sign in with your email.`)) return
+    setError(null)
+    if (!(await faceSignIn.onRemove(passkey.id))) setError("Couldn't turn off face sign-in. Please try again.")
   }
 
   const itemClass = "flex w-full items-center rounded-lg px-3 py-2 text-left text-sm hover:bg-surface-raised"
@@ -80,6 +103,26 @@ export default function UserProfile({ session, canUpgrade, onUpgrade, onSignedOu
               >
                 <Mail className="mr-2 h-4 w-4" aria-hidden="true" />
                 Save your memories with email
+              </button>
+            )}
+            {faceSignIn?.passkeys.map((passkey) => (
+              <div key={passkey.id} className="flex items-center rounded-lg px-3 py-2 text-sm">
+                <ScanFace className="mr-2 h-4 w-4 text-teal" aria-hidden="true" />
+                <span className="flex-1">Face sign-in on {passkey.device_label}</span>
+                <button
+                  role="menuitem"
+                  onClick={() => void removeFace(passkey)}
+                  aria-label={`Turn off face sign-in on ${passkey.device_label}`}
+                  className="rounded p-1 text-muted hover:bg-surface-raised hover:text-text"
+                >
+                  <X className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              </div>
+            ))}
+            {faceSignIn?.canSetUp && faceSignIn.passkeys.length === 0 && (
+              <button role="menuitem" onClick={() => void setUpFace()} className={`${itemClass} text-star`}>
+                <ScanFace className="mr-2 h-4 w-4" aria-hidden="true" />
+                Set up face sign-in
               </button>
             )}
             <button role="menuitem" onClick={signOut} className={itemClass}>

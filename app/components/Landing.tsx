@@ -17,9 +17,10 @@ interface LandingProps {
   /** The visitor's session, if they already have one. */
   session: { name: string; kind: "guest" | "email" } | null
   emailSignInEnabled: boolean
+  passkeysEnabled: boolean
 }
 
-export default function Landing({ session, emailSignInEnabled }: LandingProps) {
+export default function Landing({ session, emailSignInEnabled, passkeysEnabled }: LandingProps) {
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col px-4 sm:px-6">
       <header className="flex items-center justify-between py-5">
@@ -80,7 +81,7 @@ export default function Landing({ session, emailSignInEnabled }: LandingProps) {
                 )}
               </div>
             ) : (
-              <SignInCard mode="landing" emailSignInEnabled={emailSignInEnabled} />
+              <SignInCard mode="landing" emailSignInEnabled={emailSignInEnabled} passkeysEnabled={passkeysEnabled} />
             )}
           </div>
         </section>

@@ -17,6 +17,7 @@ export default async function AppPage() {
     <Home
       session={{ name: session.name, kind: session.kind, email: session.email ?? null }}
       emailSignInEnabled={env.emailSignInEnabled}
+      passkeysEnabled={env.passkeysEnabled}
     />
   )
 }
