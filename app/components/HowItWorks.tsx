@@ -9,7 +9,7 @@ const STEPS = [
   {
     icon: Brain,
     title: "It remembers what matters",
-    body: "After each exchange, lasting facts become stars in your constellation and are recalled when they're relevant.",
+    body: "After each exchange, lasting facts become stars in your memory constellation and are recalled when they're relevant.",
   },
   {
     icon: ShieldCheck,

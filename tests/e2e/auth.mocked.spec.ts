@@ -80,7 +80,7 @@ test("a returning visitor gets a Continue button instead of the form", async ({ 
 test("the app sends visitors without a session to the landing page", async ({ page }) => {
   await page.goto("/app")
   await expect(page).toHaveURL(/\/$/)
-  await expect(page.getByRole("heading", { name: "Sign in to your constellation" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Sign in to your memory constellation" })).toBeVisible()
 })
 
 test("the privacy page explains what is stored", async ({ page }) => {
