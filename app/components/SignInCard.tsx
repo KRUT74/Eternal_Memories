@@ -89,7 +89,7 @@ export default function SignInCard({ mode, emailSignInEnabled, onSignedIn, onCan
   }
 
   const title =
-    mode === "upgrade" ? "Keep your memories on any device" : step === "code" ? "Check your email" : "Sign in to your constellation"
+    mode === "upgrade" ? "Keep your memories on any device" : step === "code" ? "Check your email" : "Sign in to your memory constellation"
 
   return (
     <div className="rounded-3xl border border-line bg-surface p-6 shadow-2xl shadow-black/30 sm:p-8">

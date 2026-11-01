@@ -5,7 +5,7 @@ test("a new visitor sees the landing page with sign-in and how it works", async 
   await mockBackend(page)
   await page.goto("/")
   await expect(page.getByRole("heading", { level: 1, name: /Every conversation leaves a memory/ })).toBeVisible()
-  await expect(page.getByRole("heading", { name: "Sign in to your constellation" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Sign in to your memory constellation" })).toBeVisible()
   await expect(page.getByRole("heading", { name: "How it works" })).toBeVisible()
   await expect(page.getByRole("button", { name: "Email me a sign-in code" })).toBeDisabled()
   await expect(page.getByRole("link", { name: "privacy" })).toBeVisible()
@@ -65,7 +65,7 @@ test("forget everything returns to the welcome screen", async ({ page }) => {
   page.once("dialog", (dialog) => dialog.accept())
   await page.getByRole("button", { name: "Account menu for Sam" }).click()
   await page.getByRole("menuitem", { name: /Forget everything/ }).click()
-  await expect(page.getByRole("heading", { name: "Sign in to your constellation" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Sign in to your memory constellation" })).toBeVisible()
 })
 
 test.describe("on a phone", () => {
