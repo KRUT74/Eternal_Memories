@@ -50,7 +50,7 @@ export default function ChatInterface({ remainingToday, ...callbacks }: ChatInte
           </p>
         ) : messages.length === 0 ? (
           <div className="mx-auto mt-12 max-w-sm text-center">
-            <p className="font-serif text-2xl">Every conversation leaves a star.</p>
+            <p className="font-serif text-2xl">Every conversation leaves a memory.</p>
             <p className="mt-2 text-sm text-muted">
               Tell me about the people, plans and things you care about. I&apos;ll remember them next time.
             </p>
