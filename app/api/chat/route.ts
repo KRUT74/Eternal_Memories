@@ -1,8 +1,10 @@
 import type Anthropic from "@anthropic-ai/sdk"
+import { after } from "next/server"
 import { z } from "zod"
 import { anthropic, CHAT_MODEL } from "@/lib/server/anthropic"
 import { recentMessages, saveMessage } from "@/lib/server/history"
-import { extractAndStore, recall } from "@/lib/server/memory"
+import { coreMemories, describeCore, extractAndStore, recall } from "@/lib/server/memory"
+import { maybeTidy } from "@/lib/server/tidy"
 import { getSession, ipHash, unauthorized } from "@/lib/server/session"
 import { checkChatAllowed, estimateCost, limitResponse, recordUsage } from "@/lib/server/usage"
 
@@ -23,7 +25,7 @@ const VOICE_NOTE =
 
 const SYSTEM_PROMPT = `You are Eternal Memories, a warm and thoughtful companion who remembers the people you talk with across conversations.
 
-Before each reply you may be given a short list of things you remember about this person from earlier conversations. Use them the way a good friend would: bring them up when they're relevant, connect new news to what you already know, and never recite the list back. If something you remember seems out of date, ask rather than assume. Never claim to remember anything that isn't in the list or the conversation.
+Before each reply you're given what you remember about this person from earlier conversations: what you always keep in mind (the people closest to them, their health, routines and home) and anything else that seems relevant right now. Use it the way a good friend would: bring them up when they're relevant, connect new news to what you already know, and never recite the list back. If something you remember seems out of date, ask rather than assume. Never claim to remember anything that isn't in the list or the conversation.
 
 Keep replies conversational and reasonably short unless the person asks for depth. Use Markdown only when it genuinely helps.`
 
@@ -49,6 +51,9 @@ export async function POST(req: Request) {
   const check = await checkChatAllowed(userId, ip)
   if (!check.ok) return limitResponse(check)
 
+  // After the reply has streamed: merge, update and retire memories now and then.
+  after(() => maybeTidy(userId, ip).catch((error) => console.error("Memory tidy-up failed", error)))
+
   const encoder = new TextEncoder()
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -57,16 +62,28 @@ export async function POST(req: Request) {
       let costUsd = 0
 
       try {
-        const [history, memories] = await Promise.all([recentMessages(userId, HISTORY_TURNS), recall(userId, message)])
+        const [history, core, memories] = await Promise.all([
+          recentMessages(userId, HISTORY_TURNS),
+          coreMemories(userId),
+          recall(userId, message),
+        ])
         await saveMessage(userId, "user", message)
         send({
           type: "recalled",
           memories: memories.map(({ id, content, similarity }) => ({ id, content, similarity })),
         })
 
-        const memoryNote = memories.length
-          ? `What you remember about ${userName}:\n${memories.map((m) => `- ${m.content}`).join("\n")}`
-          : `You don't remember anything relevant about ${userName} yet.`
+        const memoryNote =
+          core.length || memories.length
+            ? [
+                core.length ? `Always keep in mind about ${userName}:\n${describeCore(core)}` : "",
+                memories.length
+                  ? `Other things you remember that may be relevant now:\n${memories.map((m) => `- ${m.content}`).join("\n")}`
+                  : "",
+              ]
+                .filter(Boolean)
+                .join("\n\n")
+            : `You don't remember anything about ${userName} yet.`
         const systemNote = mode === "voice" ? `${memoryNote}\n\n${VOICE_NOTE}` : memoryNote
 
         const messages: Anthropic.Beta.BetaMessageParam[] = [
@@ -110,7 +127,7 @@ export async function POST(req: Request) {
         const saved = await saveMessage(userId, "assistant", reply)
 
         try {
-          const { stored, costUsd: extractionCost } = await extractAndStore(userId, message, reply, memories, saved.id)
+          const { stored, costUsd: extractionCost } = await extractAndStore(userId, message, reply, [...core, ...memories], saved.id)
           costUsd += extractionCost
           if (stored.length) {
             send({ type: "remembered", memories: stored.map(({ id, content }) => ({ id, content })) })

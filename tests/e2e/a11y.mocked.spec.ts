@@ -70,3 +70,20 @@ test("the face sign-in prompt has no WCAG A/AA violations", async ({ page }) => 
   await page.getByRole("button", { name: "Set up face sign-in" }).waitFor()
   await expectNoViolations(page)
 })
+
+test("the memory panel with pins and a tidy-up has no WCAG A/AA violations", async ({ page }) => {
+  const backend = await mockBackend(page)
+  backend.memories = backend.memories.map((m, i) => (i === 0 ? { ...m, is_core: true, pinned: true } : m))
+  backend.lastTidy = {
+    id: "5f0e1d2c-3b4a-4958-8776-655443322110",
+    created_at: new Date().toISOString(),
+    merged: 0,
+    updated: 0,
+    retired: 1,
+    core_changed: 0,
+    changes: [{ op: "retire", id: "d", content: "Their brother Leo lives in Porto.", reason: "Leo now lives in Lisbon" }],
+  }
+  await startSession(page)
+  await page.locator("#constellation-panel").getByText("What changed").click()
+  await expectNoViolations(page)
+})

@@ -30,3 +30,4 @@ next-env.d.ts
 # playwright
 /test-results/
 /playwright-report/
+scripts/memory-eval/.embeddings-cache.json

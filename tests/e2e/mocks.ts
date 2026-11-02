@@ -18,6 +18,8 @@ export interface MockMemory {
   id: string
   content: string
   created_at: string
+  is_core?: boolean
+  pinned?: boolean
 }
 
 export const MEMORIES: MockMemory[] = [
@@ -50,6 +52,11 @@ export async function mockBackend(page: Page, options: { remainingToday?: number
     /** Face sign-in passkeys the mocked server knows about. */
     passkeys: [] as Array<{ id: string; device_label: string; created_at: string; last_used_at: string | null }>,
     faceSignIns: [] as string[],
+    /** The last memory tidy-up, as GET /api/memories returns it. */
+    lastTidy: null as null | { id: string; created_at: string; merged: number; updated: number; retired: number; core_changed: number; changes: object[] },
+    pins: [] as Array<{ id: string; pinned: boolean }>,
+    undos: [] as number[],
+    tidyRequests: 0,
   }
 
   await page.route("**/api/session", async (route) => {
@@ -136,11 +143,29 @@ export async function mockBackend(page: Page, options: { remainingToday?: number
   })
 
   await page.route("**/api/history", (route) => route.fulfill({ json: { messages: [] } }))
-  await page.route("**/api/memories", (route) => route.fulfill({ json: { memories: state.memories } }))
+  await page.route("**/api/memories", (route) => route.fulfill({ json: { memories: state.memories, lastTidy: state.lastTidy } }))
   await page.route("**/api/memories/*", async (route) => {
     const id = route.request().url().split("/").pop()!
+    if (id === "tidy") {
+      state.tidyRequests++
+      return route.fulfill({ json: { run: state.lastTidy } })
+    }
+    if (route.request().method() === "PATCH") {
+      const { pinned } = route.request().postDataJSON()
+      state.pins.push({ id, pinned })
+      state.memories = state.memories.map((m) => (m.id === id ? { ...m, pinned } : m))
+      return route.fulfill({ json: { memory: state.memories.find((m) => m.id === id) } })
+    }
     state.deleted.push(id)
     state.memories = state.memories.filter((m) => m.id !== id)
+    return route.fulfill({ status: 204 })
+  })
+  await page.route("**/api/memories/tidy/undo", async (route) => {
+    const { index } = route.request().postDataJSON()
+    state.undos.push(index)
+    if (state.lastTidy) {
+      state.lastTidy.changes = state.lastTidy.changes.map((c, i) => (i === index ? { ...c, undone: true } : c))
+    }
     return route.fulfill({ status: 204 })
   })
 

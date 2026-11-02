@@ -71,13 +71,14 @@ export default function Constellation({ memories, shapingIds, newIds, activeId, 
         const fresh = newIds.has(s.id)
         const active = activeId === s.id
         const color = fresh ? "var(--teal)" : shaping ? "var(--star)" : "#8a93b0"
+        const always = s.is_core || s.pinned
         return (
           // Focusable so keyboard users can walk the map; focusing a star highlights its list entry.
           <g
             key={s.id}
             role="img"
             tabIndex={0}
-            aria-label={`Memory: ${s.content}${shaping ? " (shaped the last reply)" : ""}${fresh ? " (new)" : ""}`}
+            aria-label={`Memory: ${s.content}${always ? " (always in mind)" : ""}${shaping ? " (shaped the last reply)" : ""}${fresh ? " (new)" : ""}`}
             onMouseEnter={() => onActivate(s.id)}
             onMouseLeave={() => onActivate(null)}
             onFocus={() => onActivate(s.id)}
@@ -88,6 +89,8 @@ export default function Constellation({ memories, shapingIds, newIds, activeId, 
             <circle cx={s.x} cy={s.y} r={12} fill="transparent" />
             {(shaping || fresh || active) && <circle cx={s.x} cy={s.y} r={active ? 12 : 9} fill={color} opacity={0.2} />}
             <circle cx={s.x} cy={s.y} r={shaping || fresh || active ? 3.8 : 2.6} fill={color} />
+            {/* A ring marks memories that are always in mind. */}
+            {always && !active && <circle cx={s.x} cy={s.y} r={5.5} fill="none" stroke="var(--star)" strokeWidth="0.9" opacity={0.75} />}
             {active && <circle cx={s.x} cy={s.y} r={7} fill="none" stroke="var(--text)" strokeWidth="1" />}
           </g>
         )
