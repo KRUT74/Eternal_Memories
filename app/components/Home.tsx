@@ -8,6 +8,8 @@ import ChatInterface from "./ChatInterface"
 import UserProfile from "./UserProfile"
 import MemoryPanel from "./MemoryPanel"
 import SignInCard from "./SignInCard"
+import FaceSetupPrompt from "./FaceSetupPrompt"
+import { setUpFaceSignIn, useFaceSupport, type Passkey } from "../lib/faceSignIn"
 import { SHAPING_MEMORIES } from "../lib/types"
 
 export interface AppSession {
@@ -17,9 +19,18 @@ export interface AppSession {
 }
 
 const EMPTY = new Set<string>()
+const FACE_PROMPT_DISMISSED = "em_face_prompt_dismissed"
 
 /** The signed-in app. The server only renders this with a valid session. */
-export default function Home({ session, emailSignInEnabled }: { session: AppSession; emailSignInEnabled: boolean }) {
+export default function Home({
+  session,
+  emailSignInEnabled,
+  passkeysEnabled,
+}: {
+  session: AppSession
+  emailSignInEnabled: boolean
+  passkeysEnabled: boolean
+}) {
   const router = useRouter()
   /** Back to the landing page, re-rendered on the server so it sees the new cookie state. */
   const goHome = useCallback(() => {
@@ -34,6 +45,63 @@ export default function Home({ session, emailSignInEnabled }: { session: AppSess
   const [newIds, setNewIds] = useState<Set<string>>(EMPTY)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [upgradeOpen, setUpgradeOpen] = useState(false)
+  // Face sign-in: null until loaded; only email accounts can have passkeys.
+  const faceSupport = useFaceSupport()
+  const [passkeys, setPasskeys] = useState<Passkey[] | null>(null)
+  const [facePromptDismissed, setFacePromptDismissed] = useState(true)
+  // Keeps the prompt up after a successful set-up, to show the confirmation.
+  const [faceSetUpHere, setFaceSetUpHere] = useState(false)
+  const faceAvailable = passkeysEnabled && session.kind === "email"
+
+  useEffect(() => {
+    if (!faceAvailable) return
+    let cancelled = false
+    fetch("/api/auth/passkey")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { passkeys: Passkey[] } | null) => {
+        if (cancelled || !data) return
+        let dismissed = false
+        try {
+          dismissed = localStorage.getItem(FACE_PROMPT_DISMISSED) === "1"
+        } catch {
+          // Storage unavailable: offer the prompt.
+        }
+        setFacePromptDismissed(dismissed)
+        setPasskeys(data.passkeys)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [faceAvailable])
+
+  const setUpFace = async () => {
+    const result = await setUpFaceSignIn()
+    if (result.ok) {
+      setFaceSetUpHere(true)
+      setPasskeys((current) => [...(current ?? []), result.passkey])
+    }
+    return result
+  }
+
+  const removeFace = async (id: string) => {
+    const res = await fetch("/api/auth/passkey", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    })
+    if (res.ok) setPasskeys((current) => (current ?? []).filter((p) => p.id !== id))
+    return res.ok
+  }
+
+  const dismissFacePrompt = () => {
+    setFacePromptDismissed(true)
+    try {
+      localStorage.setItem(FACE_PROMPT_DISMISSED, "1")
+    } catch {
+      // Without storage the prompt simply comes back next visit.
+    }
+  }
 
   useEffect(() => {
     // Earlier versions kept the user and chat history in localStorage; clear those leftovers.
@@ -108,12 +176,20 @@ export default function Home({ session, emailSignInEnabled }: { session: AppSess
             canUpgrade={session.kind === "guest" && emailSignInEnabled}
             onUpgrade={() => setUpgradeOpen(true)}
             onSignedOut={goHome}
+            faceSignIn={
+              faceAvailable && passkeys !== null
+                ? { passkeys, canSetUp: faceSupport.setUp, onSetUp: setUpFace, onRemove: removeFace }
+                : undefined
+            }
           />
         </div>
       </header>
 
       <main className="flex-1 pb-6">
         <h1 className="sr-only">Your conversation</h1>
+        {faceAvailable && faceSupport.setUp && (passkeys?.length === 0 || faceSetUpHere) && !facePromptDismissed && (
+          <FaceSetupPrompt onSetUp={setUpFace} onDismiss={dismissFacePrompt} />
+        )}
         <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_21rem]">
           <section aria-label="Conversation" className="rounded-3xl border border-line bg-surface/90 p-3 sm:p-5">
             <ChatInterface

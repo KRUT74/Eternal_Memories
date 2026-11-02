@@ -47,6 +47,9 @@ export async function mockBackend(page: Page, options: { remainingToday?: number
     deleted: [] as string[],
     codeRequests: [] as string[],
     kind: "guest" as "guest" | "email",
+    /** Face sign-in passkeys the mocked server knows about. */
+    passkeys: [] as Array<{ id: string; device_label: string; created_at: string; last_used_at: string | null }>,
+    faceSignIns: [] as string[],
   }
 
   await page.route("**/api/session", async (route) => {
@@ -85,6 +88,53 @@ export async function mockBackend(page: Page, options: { remainingToday?: number
     return route.fulfill({ json: { name: "Sam", email: "sa•••@example.com", isNew: false } })
   })
 
+  // Face sign-in: real WebAuthn in the browser (with a virtual authenticator, see
+  // addVirtualAuthenticator), against a mocked server that skips signature checks.
+  const challenge = () => Buffer.from(crypto.randomUUID()).toString("base64url")
+  await page.route("**/api/auth/passkey", async (route) => {
+    if (route.request().method() === "DELETE") {
+      const { id } = route.request().postDataJSON()
+      state.passkeys = state.passkeys.filter((p) => p.id !== id)
+      return route.fulfill({ status: 204 })
+    }
+    return route.fulfill({ json: { enabled: true, passkeys: state.passkeys } })
+  })
+  await page.route("**/api/auth/passkey/register/options", (route) =>
+    route.fulfill({
+      json: {
+        challenge: challenge(),
+        rp: { name: "Eternal Memories", id: "localhost" },
+        user: { id: Buffer.from("a_test").toString("base64url"), name: "sam@example.com", displayName: "Sam" },
+        pubKeyCredParams: [{ type: "public-key", alg: -7 }],
+        timeout: 5000,
+        attestation: "none",
+        excludeCredentials: state.passkeys.map((p) => ({ id: p.id, type: "public-key" })),
+        authenticatorSelection: { residentKey: "required", requireResidentKey: true, userVerification: "required" },
+      },
+    }),
+  )
+  await page.route("**/api/auth/passkey/register/verify", async (route) => {
+    const passkey = { id: route.request().postDataJSON().id, device_label: "Mac", created_at: new Date().toISOString(), last_used_at: null }
+    state.passkeys.push(passkey)
+    return route.fulfill({ json: { passkey } })
+  })
+  await page.route("**/api/auth/passkey/login/options", (route) =>
+    route.fulfill({ json: { challenge: challenge(), rpId: "localhost", timeout: 5000, userVerification: "required" } }),
+  )
+  await page.route("**/api/auth/passkey/login/verify", async (route) => {
+    const { id } = route.request().postDataJSON()
+    state.faceSignIns.push(id)
+    if (!state.passkeys.some((p) => p.id === id)) {
+      return route.fulfill({
+        status: 400,
+        json: { error: "This face sign-in isn't linked to an account any more. Please sign in with your email.", reason: "unknown" },
+      })
+    }
+    state.kind = "email"
+    await signInAs(context, "email")
+    return route.fulfill({ json: { name: "Sam", email: "sa•••@example.com" } })
+  })
+
   await page.route("**/api/history", (route) => route.fulfill({ json: { messages: [] } }))
   await page.route("**/api/memories", (route) => route.fulfill({ json: { memories: state.memories } }))
   await page.route("**/api/memories/*", async (route) => {
@@ -116,6 +166,26 @@ export async function mockBackend(page: Page, options: { remainingToday?: number
   })
 
   return state
+}
+
+/**
+ * Gives the page a built-in "device" that unlocks passkeys, like Face ID or Touch ID,
+ * and always recognises the user. Returns the CDP session to inspect stored passkeys.
+ */
+export async function addVirtualAuthenticator(page: Page, options: { verified?: boolean } = {}) {
+  const cdp = await page.context().newCDPSession(page)
+  await cdp.send("WebAuthn.enable")
+  const { authenticatorId } = await cdp.send("WebAuthn.addVirtualAuthenticator", {
+    options: {
+      protocol: "ctap2",
+      transport: "internal",
+      hasResidentKey: true,
+      hasUserVerification: true,
+      isUserVerified: options.verified ?? true,
+      automaticPresenceSimulation: true,
+    },
+  })
+  return { cdp, authenticatorId }
 }
 
 /** Opens the app as a signed-in guest (a real signed cookie; the API is mocked). */
