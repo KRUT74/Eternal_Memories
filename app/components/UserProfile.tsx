@@ -119,10 +119,11 @@ export default function UserProfile({ session, canUpgrade, onUpgrade, onSignedOu
                 </button>
               </div>
             ))}
-            {faceSignIn?.canSetUp && faceSignIn.passkeys.length === 0 && (
+            {/* Always offered: another device having it doesn't mean this one does. */}
+            {faceSignIn?.canSetUp && (
               <button role="menuitem" onClick={() => void setUpFace()} className={`${itemClass} text-star`}>
                 <ScanFace className="mr-2 h-4 w-4" aria-hidden="true" />
-                Set up face sign-in
+                {faceSignIn.passkeys.length === 0 ? "Set up face sign-in" : "Set up face sign-in on this device"}
               </button>
             )}
             <button role="menuitem" onClick={signOut} className={itemClass}>

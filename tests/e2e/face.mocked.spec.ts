@@ -49,6 +49,18 @@ test("face sign-in can be turned off from the account menu", async ({ page }) =>
   expect(backend.passkeys).toEqual([])
 })
 
+test("face sign-in can be added on a second device", async ({ page }) => {
+  const backend = await mockBackend(page)
+  await addVirtualAuthenticator(page)
+  backend.passkeys.push({ id: "pk_other", device_label: "Mac", created_at: "2026-11-01T10:00:00Z", last_used_at: null })
+  await signInAs(page.context(), "email")
+  await page.goto("/app")
+  await page.getByRole("button", { name: "Account menu for Sam" }).click()
+  await page.getByRole("menuitem", { name: "Set up face sign-in on this device" }).click()
+  await expect(page.getByText("Face sign-in on Mac")).toHaveCount(2)
+  expect(backend.passkeys).toHaveLength(2)
+})
+
 test("with no face sign-in on this device, it says so and offers email", async ({ page }) => {
   await mockBackend(page)
   await addVirtualAuthenticator(page)
