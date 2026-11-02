@@ -24,6 +24,10 @@ Open **SQL Editor** → **Create a new snippet**, and run each file in
 3. `20261027000000_voice_usage.sql`: logs voice costs and adds the per-visitor spend cap
 4. `20261027100000_accounts.sql`: email accounts and one-time sign-in codes
 5. `20261102000000_passkeys.sql`: face sign-in passkeys (public keys only) and their one-time challenges
+6. `20261103000000_memory_upgrade.sql`: core profile, pins, keyword search, tidy-ups
+
+After step 6 on a database that already has memories, run
+`node --env-file=.env.local scripts/backfill-memory-categories.mjs` once to give them categories and core flags.
 
 Each should report "Success. No rows returned."
 

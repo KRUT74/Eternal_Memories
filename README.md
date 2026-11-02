@@ -60,29 +60,51 @@ flowchart LR
   Mic -- audio --> Scribe -- transcript --> UI
   UI -- message --> Chat
   Chat --> Limits
-  Chat -- recall --> Embed --> PG
+  Chat -- core profile + search --> Embed --> PG
   Chat -- reply stream --> Claude
-  Chat -- new facts --> Haiku --> PG
+  Chat -- new facts, tidy-ups --> Haiku --> PG
   UI -- each sentence --> Speak --> TTS --> Player
   UI --> Token -- single-use token --> Scribe
 ```
 
 **Memory, step by step**
 
-1. The message is embedded with Supabase's built-in `gte-small` model and the 12 closest
-   memories are fetched with pgvector.
-2. They're given to Claude Sonnet 5.5 as a *mid-conversation system message*, which keeps the
-   main system prompt stable and marks memories as context, not something the user said.
-3. The reply streams back. Claude Haiku 5.5 then reads the exchange and returns new facts as
-   structured output. Each fact is deduplicated against existing memories, and corrections
-   ("Porto, not Lisbon") replace the old fact.
+1. **Always in mind.** The person's core profile (their name, closest people, health and
+   medications, routines, home, what to do in an emergency, plus anything they pinned) is
+   included with every reply, grouped by kind. It never depends on search.
+2. **Search by meaning and keyword.** The message is embedded with Supabase's built-in
+   `gte-small` model. `search_memories` takes the 40 closest memories by meaning and the 40 best
+   Postgres full-text matches (so names like "Dr. Patel" match exactly), merges them with
+   reciprocal rank fusion and returns the top 12. It scans that person's memories exactly,
+   because filtering a shared HNSW index by person can silently return too few.
+3. Both go to Claude Sonnet 5.5 as a *mid-conversation system message*, which keeps the main
+   system prompt stable and marks memories as context, not something the user said.
+4. The reply streams back. Claude Haiku 5.5 then reads the exchange and returns new facts as
+   structured output, each with a category, a subject ("Leo") and whether it's core. Facts are
+   deduplicated, and corrections ("Lisbon, not Porto") retire the old fact and keep its pin.
+5. **Tidy-ups.** After 25 new memories, or a week, Haiku reviews everything in the background
+   (Next.js `after()`): it merges overlapping memories, rewords vague ones, retires outdated
+   ones and adjusts the core profile. It never invents facts or touches pinned memories.
+   Every change is listed in the app with an Undo button, and set-aside memories are kept for
+   30 days.
+
+**Measured** with `scripts/memory-eval` (a test person with 410 memories and 32 realistic
+questions, e.g. "Did I take my evening pill?"):
+
+| | Before | After |
+| --- | --- | --- |
+| Right memory reached Claude | 85% | 88% |
+| Core facts in front of Claude on any question | 6% | 88–100% |
+| Questions where an outdated fact was also shown | 5 | 0 |
+
+A tidy-up of all 410 memories cost about $0.005 and took 35 seconds in the background. Without
+any core flags to start from, it found 14 of the 16 expected core facts.
 
 Design notes that came from testing:
 
 - **No similarity cut-off for recall.** With `gte-small`, indirect matches ("the school run was
   chaos" → "daughter just started school") score about 0.79–0.80, close to unrelated facts at
-  0.73–0.77. So recall passes the 12 nearest memories and lets Claude judge relevance. A person
-  has tens of memories, not thousands, so this costs little.
+  0.73–0.77. So recall passes the 12 best memories and lets Claude judge relevance.
 - **Corrections skip the duplicate check.** "Married in Porto" and "married in Lisbon" embed as
   near-duplicates, so a correction is applied as a replacement first.
 - **Passing moods aren't memories.** The extractor ignores one-off states like "had a rough day".
@@ -153,11 +175,14 @@ pnpm build && pnpm start
 ```bash
 pnpm test:e2e        # free: mocks the API and the ElevenLabs socket
 pnpm test:e2e:live   # opt-in: real Claude, Supabase and ElevenLabs (a few cents)
+node --env-file=.env.local scripts/memory-eval/run.mjs baseline|upgrade|tidy   # memory recall test
 ```
 
-- **Mocked suite (15 tests).** Covers the chat flow, recalled and new memory chips, forgetting,
-  limits, the phone drawer, specific microphone errors, a full hands-free voice turn against a
-  mocked Scribe socket, and axe WCAG 2.2 A/AA scans with no violations.
+- **Mocked suite (38 tests).** Covers the chat flow, recalled and new memory chips, forgetting,
+  pinning, the "Always in mind" group, tidy-up undo, email and face sign-in (with Chrome's
+  virtual authenticator), limits, the phone drawer, specific microphone errors, a full
+  hands-free voice turn against a mocked Scribe socket, and axe WCAG 2.2 A/AA scans with no
+  violations.
 - **Live suite.** Checks that a fact is remembered and used later, and runs a complete voice
   turn using an ElevenLabs-generated recording as Chrome's fake microphone.
 

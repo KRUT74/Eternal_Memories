@@ -42,7 +42,8 @@ test("a hands-free turn: listen, think, reply, listen again", async ({ page }) =
 
   const bar = page.getByRole("group", { name: "Voice conversation" })
   await expect(bar.getByText("Listening…")).toBeVisible()
-  await expect(page.getByText("I skipped my long run today.")).toBeVisible()
+  // The voice bar also shows the live transcript for a moment; check the chat bubble.
+  await expect(page.getByText("You said: I skipped my long run today.")).toBeVisible()
   await expect(page.getByText(/One skipped long run/)).toBeVisible()
   await expect(bar.getByText("Listening…")).toBeVisible()
   expect(backend.chatBodies).toEqual([{ message: "I skipped my long run today.", mode: "voice" }])

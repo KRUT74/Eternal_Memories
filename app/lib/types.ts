@@ -2,6 +2,28 @@ export interface MemoryItem {
   id: string
   content: string
   created_at?: string
+  category?: string
+  subject?: string | null
+  /** Always included in replies (key people, health, routines, home). */
+  is_core?: boolean
+  /** "Always remember this", set by the person. */
+  pinned?: boolean
+}
+
+export type TidyChange =
+  | { op: "merge"; sources: { id: string; content: string }[]; created: { id: string; content: string }; reason: string; undone?: boolean }
+  | { op: "update"; id: string; before: string; after: string; reason: string; undone?: boolean }
+  | { op: "retire"; id: string; content: string; reason: string; undone?: boolean }
+  | { op: "core"; id: string; content: string; core: boolean; reason: string; undone?: boolean }
+
+export interface TidyRun {
+  id: string
+  created_at: string
+  merged: number
+  updated: number
+  retired: number
+  core_changed: number
+  changes: TidyChange[]
 }
 
 export interface RecalledMemory {

@@ -120,7 +120,7 @@ export async function checkSessionAllowed(ipHash: string): Promise<LimitCheck> {
 }
 
 export async function recordUsage(
-  kind: "chat" | "session" | "stt" | "tts",
+  kind: "chat" | "session" | "stt" | "tts" | "tidy",
   userId: string,
   ipHash: string,
   costUsd = 0,
