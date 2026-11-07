@@ -37,6 +37,10 @@ const MEMORY_COLUMNS = "id, content, created_at, category, subject, is_core, pin
 // in Postgres (search_memories). gte-small scores are compressed, so there's no
 // useful similarity threshold: we pass the best few and let Claude judge relevance.
 const RECALL_LIMIT = 12
+// One memory brings related ones with it: others about the same person or thing
+// as the best matches, so Leo's move also brings Leo's birthday.
+const RELATED_FROM_TOP = 5
+const RELATED_LIMIT = 6
 // The core profile is included in every reply; past this many, the oldest
 // non-pinned core memories wait for the next tidy-up to be consolidated.
 const CORE_LIMIT = 40
@@ -53,7 +57,42 @@ export async function recall(userId: string, text: string): Promise<MatchedMemor
     match_count: RECALL_LIMIT,
   })
   if (error) throw error
-  return data as MatchedMemory[]
+  const matches = data as MatchedMemory[]
+  return [...matches, ...(await relatedMemories(userId, matches))]
+}
+
+/** Memories about the same subjects as the best matches; they follow the matches in the list. */
+async function relatedMemories(userId: string, matches: MatchedMemory[]): Promise<MatchedMemory[]> {
+  const subjects = [...new Set(matches.slice(0, RELATED_FROM_TOP).flatMap((m) => (m.subject ? [m.subject] : [])))]
+  if (subjects.length === 0) return []
+  const { data, error } = await supabase()
+    .from("memories")
+    .select("id, content, category, subject, created_at")
+    .eq("user_id", userId)
+    .in("subject", subjects)
+    .is("retired_at", null)
+    .eq("is_core", false)
+    .eq("pinned", false)
+    .not("id", "in", `(${matches.map((m) => m.id).join(",")})`)
+    .order("updated_at", { ascending: false })
+    .limit(RELATED_LIMIT)
+  if (error) throw error
+  return (data as Omit<MatchedMemory, "similarity" | "keyword_rank">[]).map((m) => ({ ...m, similarity: 0, keyword_rank: 0 }))
+}
+
+/** The latest non-core memories, for the greeting. Core memories are always included anyway. */
+export async function newestMemories(userId: string, limit: number): Promise<Memory[]> {
+  const { data, error } = await supabase()
+    .from("memories")
+    .select(MEMORY_COLUMNS)
+    .eq("user_id", userId)
+    .is("retired_at", null)
+    .eq("is_core", false)
+    .eq("pinned", false)
+    .order("created_at", { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  return data as Memory[]
 }
 
 /** The core profile: pinned and core memories, included in every reply. */
@@ -161,9 +200,9 @@ const ExtractionSchema = z.object({
 
 const EXTRACTION_PROMPT = `You maintain the long-term memory of a personal AI companion.
 
-Read the latest exchange and decide which facts about the user are worth remembering for future conversations: people in their life, important events, preferences, plans, goals, feelings about recurring topics. Write each as a short third-person sentence ("Their daughter Mia started school in September").
+Read the latest exchange and decide which facts about the user are worth remembering for future conversations: people in their life, important events, preferences, plans, goals, feelings about recurring topics. Also remember anything a caring friend would want to ask about next time: upcoming events with their date if given ("Has a scan on Thursday 12 November"), ongoing worries, and things they're waiting to hear about. Use the category "plan" for these. Write each as a short third-person sentence ("Their daughter Mia started school in September").
 
-For each fact also give its category (person, health, routine, place, preference, plan, other), its subject (the person, pet or thing it's about, or null), and whether it is core. Core means it would matter in almost any conversation: the user's own name, their closest people and relationships, health conditions, medications and allergies, daily routines, where they live, and what to do in an emergency. Most facts are not core.
+For each fact also give its category (person, health, routine, place, preference, plan, other), its subject (the person, pet or thing it's about, or null; always the same short name for the same person, e.g. "Leo"), and whether it is core. Core means it would matter in almost any conversation: the user's own name, their closest people and relationships, health conditions, medications and allergies, daily routines, where they live, and what to do in an emergency. Most facts are not core.
 
 Only record what the user said or clearly confirmed about themselves. Skip small talk, questions, passing moods and one-off moments ("had a rough day", "is tired today"), and anything the assistant said that the user didn't confirm. Don't repeat facts already in the known memories. If the user corrects or updates a known memory, return the new version with that memory's id in replaces_id.
 
@@ -192,7 +231,7 @@ export async function extractAndStore(
     messages: [
       {
         role: "user",
-        content: `<known_memories>\n${knownList}\n</known_memories>\n\n<user_message>\n${userMessage}\n</user_message>\n\n<assistant_reply>\n${assistantReply}\n</assistant_reply>`,
+        content: `Today is ${new Date().toISOString().slice(0, 10)}. Turn relative dates ("on Thursday") into real ones.\n\n<known_memories>\n${knownList}\n</known_memories>\n\n<user_message>\n${userMessage}\n</user_message>\n\n<assistant_reply>\n${assistantReply}\n</assistant_reply>`,
       },
     ],
   })

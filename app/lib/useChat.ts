@@ -25,6 +25,31 @@ export interface SendOptions {
   onTextDelta?: (text: string) => void
 }
 
+const timeZone = () => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone
+  } catch {
+    return undefined
+  }
+}
+
+/** Reads a server-sent event stream, calling onEvent for each event. */
+async function readEvents(body: ReadableStream<Uint8Array>, onEvent: (event: ChatEvent) => void) {
+  const reader = body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ""
+  while (true) {
+    const { value, done } = await reader.read()
+    if (done) return
+    buffer += decoder.decode(value, { stream: true })
+    const events = buffer.split("\n\n")
+    buffer = events.pop() ?? ""
+    for (const raw of events) {
+      if (raw.startsWith("data: ")) onEvent(JSON.parse(raw.slice(6)) as ChatEvent)
+    }
+  }
+}
+
 /**
  * Conversation state plus the one code path that sends a message and streams the
  * reply. Typed and spoken messages both go through `send`.
@@ -34,10 +59,55 @@ export function useChat(callbacks: ChatCallbacks) {
   const [historyLoaded, setHistoryLoaded] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // The companion's opening on a new visit, until its first words arrive.
+  const [isGreeting, setIsGreeting] = useState(false)
+  const greeting = useRef<{ abort: AbortController; messageId: string } | null>(null)
   const callbacksRef = useRef(callbacks)
   useEffect(() => {
     callbacksRef.current = callbacks
   })
+
+  /** Asks whether the companion should speak first, and streams its opening into the chat. */
+  const greet = useCallback(async () => {
+    const abort = new AbortController()
+    const messageId = crypto.randomUUID()
+    greeting.current = { abort, messageId }
+    setIsGreeting(true)
+    const addText = (text: string) => {
+      setIsGreeting(false)
+      setMessages((prev) =>
+        prev.some((m) => m.id === messageId)
+          ? prev.map((m) => (m.id === messageId ? { ...m, content: m.content + text } : m))
+          : [...prev, { id: messageId, role: "assistant", content: text }],
+      )
+    }
+
+    try {
+      const response = await fetch("/api/greeting", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ timeZone: timeZone() }),
+        signal: abort.signal,
+      })
+      if (!response.ok) return
+      if (response.body && response.headers.get("Content-Type")?.includes("text/event-stream")) {
+        callbacksRef.current.onMessageSent()
+        await readEvents(response.body, (event) => {
+          if (event.type === "text") addText(event.text)
+        })
+      } else {
+        const data: { fallback?: string } = await response.json()
+        if (data.fallback) addText(data.fallback)
+      }
+    } catch {
+      // A missing greeting never gets in the way: they can simply start talking.
+    } finally {
+      if (greeting.current?.abort === abort) {
+        greeting.current = null
+        setIsGreeting(false)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -47,7 +117,9 @@ export function useChat(callbacks: ChatCallbacks) {
         return res.ok ? res.json() : Promise.reject(new Error("Could not load your conversation"))
       })
       .then((data: { messages: Message[] }) => {
-        if (!cancelled) setMessages(data.messages)
+        if (cancelled) return
+        setMessages(data.messages)
+        void greet()
       })
       .catch((err: Error) => {
         if (!cancelled) setError(err.message)
@@ -58,7 +130,7 @@ export function useChat(callbacks: ChatCallbacks) {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [greet])
 
   const updateMessage = (id: string, update: (message: Message) => Message) =>
     setMessages((prev) => prev.map((m) => (m.id === id ? update(m) : m)))
@@ -68,6 +140,15 @@ export function useChat(callbacks: ChatCallbacks) {
     const message = text.trim()
     if (!message) return null
     const cb = callbacksRef.current
+
+    // They spoke first: drop a greeting that's still on its way.
+    if (greeting.current) {
+      const { abort, messageId } = greeting.current
+      greeting.current = null
+      abort.abort()
+      setIsGreeting(false)
+      setMessages((prev) => prev.filter((m) => m.id !== messageId))
+    }
 
     const assistantId = crypto.randomUUID()
     setMessages((prev) => [
@@ -83,7 +164,7 @@ export function useChat(callbacks: ChatCallbacks) {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, mode: options.mode ?? "text" }),
+        body: JSON.stringify({ message, mode: options.mode ?? "text", timeZone: timeZone() }),
       })
       if (response.status === 401) {
         cb.onSessionExpired()
@@ -96,35 +177,21 @@ export function useChat(callbacks: ChatCallbacks) {
       }
       cb.onMessageSent()
 
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ""
-
-      while (true) {
-        const { value, done } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-
-        const events = buffer.split("\n\n")
-        buffer = events.pop() ?? ""
-        for (const raw of events) {
-          if (!raw.startsWith("data: ")) continue
-          const event = JSON.parse(raw.slice(6)) as ChatEvent
-          if (event.type === "recalled") {
-            updateMessage(assistantId, (m) => ({ ...m, recalled: event.memories }))
-            cb.onRecalled(event.memories)
-          } else if (event.type === "text") {
-            reply += event.text
-            updateMessage(assistantId, (m) => ({ ...m, content: m.content + event.text }))
-            options.onTextDelta?.(event.text)
-          } else if (event.type === "remembered") {
-            updateMessage(assistantId, (m) => ({ ...m, remembered: event.memories }))
-            cb.onRemembered(event.memories)
-          } else if (event.type === "error") {
-            throw new Error(event.error)
-          }
+      await readEvents(response.body, (event) => {
+        if (event.type === "recalled") {
+          updateMessage(assistantId, (m) => ({ ...m, recalled: event.memories }))
+          cb.onRecalled(event.memories)
+        } else if (event.type === "text") {
+          reply += event.text
+          updateMessage(assistantId, (m) => ({ ...m, content: m.content + event.text }))
+          options.onTextDelta?.(event.text)
+        } else if (event.type === "remembered") {
+          updateMessage(assistantId, (m) => ({ ...m, remembered: event.memories }))
+          cb.onRemembered(event.memories)
+        } else if (event.type === "error") {
+          throw new Error(event.error)
         }
-      }
+      })
       return reply
     } catch (err) {
       // Drop an empty assistant bubble so the error stands on its own.
@@ -138,5 +205,5 @@ export function useChat(callbacks: ChatCallbacks) {
 
   const lastUserMessage = messages.findLast((m) => m.role === "user")?.content ?? ""
 
-  return { messages, historyLoaded, isSending, error, clearError: () => setError(null), send, lastUserMessage }
+  return { messages, historyLoaded, isSending, isGreeting, error, clearError: () => setError(null), send, lastUserMessage }
 }

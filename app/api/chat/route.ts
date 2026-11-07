@@ -2,8 +2,9 @@ import type Anthropic from "@anthropic-ai/sdk"
 import { after } from "next/server"
 import { z } from "zod"
 import { anthropic, CHAT_MODEL } from "@/lib/server/anthropic"
+import { describeMemories, describeNow, historyForClaude, replyNote, SYSTEM_PROMPT } from "@/lib/server/companion"
 import { recentMessages, saveMessage } from "@/lib/server/history"
-import { coreMemories, describeCore, extractAndStore, recall } from "@/lib/server/memory"
+import { coreMemories, extractAndStore, recall } from "@/lib/server/memory"
 import { maybeTidy } from "@/lib/server/tidy"
 import { getSession, ipHash, unauthorized } from "@/lib/server/session"
 import { checkChatAllowed, estimateCost, limitResponse, recordUsage } from "@/lib/server/usage"
@@ -18,16 +19,8 @@ const MAX_REPLY_TOKENS = 1024
 const RequestSchema = z.object({
   message: z.string().trim().min(1).max(2000),
   mode: z.enum(["text", "voice"]).default("text"),
+  timeZone: z.string().max(64).optional(),
 })
-
-const VOICE_NOTE =
-  "This reply will be spoken aloud in a voice conversation: answer in one to three short, natural sentences, with no Markdown, lists or emoji."
-
-const SYSTEM_PROMPT = `You are Eternal Memories, a warm and thoughtful companion who remembers the people you talk with across conversations.
-
-Before each reply you're given what you remember about this person from earlier conversations: what you always keep in mind (the people closest to them, their health, routines and home) and anything else that seems relevant right now. Use it the way a good friend would: bring them up when they're relevant, connect new news to what you already know, and never recite the list back. If something you remember seems out of date, ask rather than assume. Never claim to remember anything that isn't in the list or the conversation.
-
-Keep replies conversational and reasonably short unless the person asks for depth. Use Markdown only when it genuinely helps.`
 
 export type ChatEvent =
   | { type: "recalled"; memories: { id: string; content: string; similarity: number }[] }
@@ -45,7 +38,7 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return Response.json({ error: "Messages can be up to 2,000 characters." }, { status: 400 })
   }
-  const { message, mode } = parsed.data
+  const { message, mode, timeZone } = parsed.data
 
   const ip = ipHash(req)
   const check = await checkChatAllowed(userId, ip)
@@ -73,21 +66,10 @@ export async function POST(req: Request) {
           memories: memories.map(({ id, content, similarity }) => ({ id, content, similarity })),
         })
 
-        const memoryNote =
-          core.length || memories.length
-            ? [
-                core.length ? `Always keep in mind about ${userName}:\n${describeCore(core)}` : "",
-                memories.length
-                  ? `Other things you remember that may be relevant now:\n${memories.map((m) => `- ${m.content}`).join("\n")}`
-                  : "",
-              ]
-                .filter(Boolean)
-                .join("\n\n")
-            : `You don't remember anything about ${userName} yet.`
-        const systemNote = mode === "voice" ? `${memoryNote}\n\n${VOICE_NOTE}` : memoryNote
+        const systemNote = replyNote(describeMemories(userName, core, memories), describeNow(timeZone), mode)
 
         const messages: Anthropic.Beta.BetaMessageParam[] = [
-          ...history.map((m) => ({ role: m.role, content: m.content })),
+          ...historyForClaude(history),
           { role: "user", content: message },
           // Mid-conversation system message: keeps the top-level system prompt
           // stable and marks recalled memories as operator context, not user text.

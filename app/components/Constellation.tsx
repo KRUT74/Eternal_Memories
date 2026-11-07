@@ -44,9 +44,29 @@ const DUST = Array.from({ length: 28 }, (_, i) => ({
   r: 0.6 + hash(`dust${i}`, 5) * 0.8,
 }))
 
+type Star = MemoryItem & { x: number; y: number }
+
+/**
+ * Lines join related memories: those about the same person or thing, or failing
+ * that the same kind of memory. Each star links to the previous one in its group.
+ */
+function relatedLinks(stars: Star[]): [Star, Star][] {
+  const lastInGroup = new Map<string, Star>()
+  const links: [Star, Star][] = []
+  for (const star of stars) {
+    const subject = star.subject?.trim().toLowerCase()
+    const group = subject ? `subject:${subject}` : star.category && star.category !== "other" ? `category:${star.category}` : null
+    if (!group) continue
+    const previous = lastInGroup.get(group)
+    if (previous) links.push([previous, star])
+    lastInGroup.set(group, star)
+  }
+  return links
+}
+
 export default function Constellation({ memories, shapingIds, newIds, activeId, onActivate }: ConstellationProps) {
-  // Oldest first, so the lines trace the order things were learned.
-  const stars = [...memories]
+  // Oldest first, so each group's lines trace the order things were learned.
+  const stars: Star[] = [...memories]
     .sort((a, b) => (a.created_at ?? "").localeCompare(b.created_at ?? ""))
     .map((m) => ({ ...m, ...position(m.id) }))
 
@@ -61,9 +81,21 @@ export default function Constellation({ memories, shapingIds, newIds, activeId, 
         {DUST.map((d, i) => (
           <circle key={i} cx={d.x} cy={d.y} r={d.r} fill="#3b4566" />
         ))}
-        {stars.slice(1).map((s, i) => (
-          <line key={s.id} x1={stars[i].x} y1={stars[i].y} x2={s.x} y2={s.y} stroke="#2e3b63" strokeWidth="1" />
-        ))}
+        {relatedLinks(stars).map(([a, b]) => {
+          const lit = activeId === a.id || activeId === b.id
+          return (
+            <line
+              key={`${a.id}-${b.id}`}
+              data-testid="memory-link"
+              x1={a.x}
+              y1={a.y}
+              x2={b.x}
+              y2={b.y}
+              stroke={lit ? "var(--star)" : "#2e3b63"}
+              strokeWidth={lit ? 1.4 : 1}
+            />
+          )
+        })}
       </g>
 
       {stars.map((s) => {

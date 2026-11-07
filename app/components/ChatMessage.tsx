@@ -33,7 +33,7 @@ export default function ChatMessage({ message }: { message: Message }) {
             <li
               key={m.id}
               className="rounded-full border border-star/35 bg-star-soft px-2.5 py-0.5 text-[#f7dca4]"
-              title={`Recalled · similarity ${m.similarity.toFixed(2)}`}
+              title={m.similarity ? `Recalled · similarity ${m.similarity.toFixed(2)}` : "Recalled · related memory"}
             >
               <span aria-hidden="true">★ </span>
               <span className="sr-only">Recalled: </span>

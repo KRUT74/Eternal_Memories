@@ -19,7 +19,7 @@ export default function ChatInterface({ remainingToday, ...callbacks }: ChatInte
   const voice = useVoiceConversation({ send: chat.send })
   const [input, setInput] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const { messages, historyLoaded, isSending, error } = chat
+  const { messages, historyLoaded, isSending, isGreeting, error } = chat
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
@@ -48,7 +48,7 @@ export default function ChatInterface({ remainingToday, ...callbacks }: ChatInte
           <p className="mt-10 text-center text-muted" role="status">
             Gathering your memories…
           </p>
-        ) : messages.length === 0 ? (
+        ) : messages.length === 0 && !isGreeting ? (
           <div className="mx-auto mt-12 max-w-sm text-center">
             <p className="font-serif text-2xl">Every conversation leaves a memory.</p>
             <p className="mt-2 text-sm text-muted">
@@ -64,7 +64,7 @@ export default function ChatInterface({ remainingToday, ...callbacks }: ChatInte
               ))}
           </div>
         )}
-        {waitingForFirstToken && (
+        {(waitingForFirstToken || isGreeting) && (
           <div className="flex items-center gap-3 text-muted" role="status">
             <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-star" aria-hidden="true" />
             Reaching for the right memories…
