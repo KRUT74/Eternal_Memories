@@ -87,3 +87,11 @@ test("the memory panel with pins and a tidy-up has no WCAG A/AA violations", asy
   await page.locator("#constellation-panel").getByText("What changed").click()
   await expectNoViolations(page)
 })
+
+test("a chat that opens with a greeting has no WCAG A/AA violations", async ({ page }) => {
+  const backend = await mockBackend(page)
+  backend.greeting = { text: "Hello Sam. How did the run go?" }
+  await startSession(page)
+  await page.getByText("Hello Sam. How did the run go?").waitFor()
+  await expectNoViolations(page)
+})

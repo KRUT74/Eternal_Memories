@@ -193,7 +193,7 @@ export default function MemoryPanel({ refreshKey, shapingIds, newIds, onCountCha
         )}
       </div>
       <p className="mb-4 mt-1 text-[13px] text-muted">
-        Each star is something I remember. Gold ones shaped my last reply, teal ones are new, and ringed ones are always in mind.
+        Each star is something I remember. Gold ones shaped my last reply, teal ones are new, ringed ones are always in mind, and lines join related memories.
       </p>
 
       {error && (

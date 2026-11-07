@@ -20,6 +20,8 @@ export interface MockMemory {
   created_at: string
   is_core?: boolean
   pinned?: boolean
+  subject?: string | null
+  category?: string
 }
 
 export const MEMORIES: MockMemory[] = [
@@ -57,6 +59,11 @@ export async function mockBackend(page: Page, options: { remainingToday?: number
     pins: [] as Array<{ id: string; pinned: boolean }>,
     undos: [] as number[],
     tidyRequests: 0,
+    /** What /api/greeting answers on a new visit: null means no greeting is due. */
+    greeting: null as null | { text: string } | { fallback: string },
+    greetingRequests: 0,
+    /** Keep the greeting pending until the test releases it. */
+    holdGreeting: null as null | Promise<void>,
   }
 
   await page.route("**/api/session", async (route) => {
@@ -140,6 +147,20 @@ export async function mockBackend(page: Page, options: { remainingToday?: number
     state.kind = "email"
     await signInAs(context, "email")
     return route.fulfill({ json: { name: "Sam", email: "sa•••@example.com" } })
+  })
+
+  await page.route("**/api/greeting", async (route) => {
+    state.greetingRequests++
+    if (state.holdGreeting) await state.holdGreeting
+    const greeting = state.greeting
+    if (!greeting) return route.fulfill({ json: { greeting: null } }).catch(() => {})
+    if ("fallback" in greeting) return route.fulfill({ json: { greeting: null, fallback: greeting.fallback } }).catch(() => {})
+    return route
+      .fulfill({
+        headers: { "Content-Type": "text/event-stream" },
+        body: sse([{ type: "text", text: greeting.text.slice(0, 12) }, { type: "text", text: greeting.text.slice(12) }, { type: "done" }]),
+      })
+      .catch(() => {})
   })
 
   await page.route("**/api/history", (route) => route.fulfill({ json: { messages: [] } }))

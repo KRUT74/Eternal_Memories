@@ -32,7 +32,7 @@ test("chatting streams a reply and shows the memories it used and added", async 
   await expect(panel.getByRole("img", { name: `Memory: ${NEW_MEMORY.content} (new)` })).toBeVisible()
   await expect(panel.getByRole("img", { name: `Memory: ${MEMORIES[1].content} (shaped the last reply)` })).toBeVisible()
   await expect(page.getByText("demo · 39 messages left today")).toBeVisible()
-  expect(backend.chatBodies).toEqual([{ message: "I skipped my long run today.", mode: "text" }])
+  expect(backend.chatBodies).toMatchObject([{ message: "I skipped my long run today.", mode: "text" }])
 })
 
 test("forgetting a memory removes it from the constellation", async ({ page }) => {

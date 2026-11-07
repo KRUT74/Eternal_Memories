@@ -5,10 +5,12 @@
 // and scores what each recall strategy would put in front of Claude.
 // The test user is deleted afterwards.
 //
-//   node --env-file=.env.local scripts/memory-eval/run.mjs [baseline|upgrade|tidy]
+//   node --env-file=.env.local scripts/memory-eval/run.mjs [baseline|upgrade|linked|tidy]
 //
 // baseline: meaning-only search, as before the memory upgrade.
 // upgrade:  keyword + meaning search, plus the core profile (core flags from the test data).
+// linked:   like upgrade, plus related memories: others about the same person as the
+//           best matches (subjects here come from the names in the text).
 // tidy:     like upgrade, but nothing starts as core: a real tidy-up through the
 //           local app (http://localhost:3107) decides, merges and retires first.
 
@@ -70,6 +72,7 @@ async function embed(texts) {
   return texts.map((t) => cache[t])
 }
 
+const NAMES = /\b(Leo|Ana|Marc|Claire|Lucía|Pau|Jordi|Montse|Carme|Mixa|Núria|Sílvia|Dr\. Patel|Dr\. Serra)\b/
 const vector = (v) => `[${v.join(",")}]`
 
 async function seed() {
@@ -80,7 +83,8 @@ async function seed() {
     user_id: USER,
     content: m.content,
     embedding: vector(embeddings[i]),
-    ...(STRATEGY === "upgrade" ? { is_core: Boolean(m.core) } : {}),
+    ...(STRATEGY === "upgrade" || STRATEGY === "linked" ? { is_core: Boolean(m.core) } : {}),
+    ...(STRATEGY === "linked" ? { subject: NAMES.exec(m.content)?.[0] ?? null } : {}),
   }))
   const inserted = []
   for (let i = 0; i < rows.length; i += 100) {
@@ -110,7 +114,16 @@ async function contextFor(question, embedding) {
       body: JSON.stringify({ p_user_id: USER, query_embedding: vector(embedding), query_text: question, match_count: TOP_K }),
     }),
   ])
-  return [...core.map((r) => r.id), ...found.map((r) => r.id)]
+  const ids = [...core.map((r) => r.id), ...found.map((r) => r.id)]
+  if (STRATEGY !== "linked") return ids
+  // The same query as relatedMemories in lib/server/memory.ts.
+  const subjects = [...new Set(found.slice(0, 5).flatMap((r) => (r.subject ? [r.subject] : [])))]
+  if (subjects.length === 0) return ids
+  const related = await rest(
+    `/memories?user_id=eq.${USER}&retired_at=is.null&is_core=eq.false&pinned=eq.false&subject=in.(${subjects.map((x) => `"${x}"`).join(",")})` +
+      `&id=not.in.(${found.map((r) => r.id).join(",")})&select=id&order=updated_at.desc&limit=6`,
+  )
+  return [...ids, ...related.map((r) => r.id)]
 }
 
 /** Runs a real tidy-up via the local app's "Tidy up now" endpoint, as the test user. */

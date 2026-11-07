@@ -88,6 +88,18 @@ flowchart LR
    Every change is listed in the app with an Undo button, and set-aside memories are kept for
    30 days.
 
+**How it talks.** The companion has the warmth of a best friend, the listening of a good
+therapist and the patience of a caring relative, and it says plainly that it's an AI and none of
+those professionals. On a new visit (after 3 hours or more) it speaks first: hello by name, then
+one question that follows up on last time ("How did the scan go?"), working out from real dates
+whether an event has happened yet. It never says "as I told you", answers repeated questions
+afresh, doesn't advise on medication, points to emergency help when someone may be in danger, and
+encourages the people already in their life. When someone seems to have forgotten a death, it
+responds to the feeling first and tells the truth gently if asked directly.
+
+**Linked memories.** When a memory comes up, others about the same person come with it, and the
+constellation's lines join related memories rather than following time order.
+
 **Measured** with `scripts/memory-eval` (a test person with 410 memories and 32 realistic
 questions, e.g. "Did I take my evening pill?"):
 
@@ -178,7 +190,7 @@ pnpm test:e2e:live   # opt-in: real Claude, Supabase and ElevenLabs (a few cents
 node --env-file=.env.local scripts/memory-eval/run.mjs baseline|upgrade|tidy   # memory recall test
 ```
 
-- **Mocked suite (38 tests).** Covers the chat flow, recalled and new memory chips, forgetting,
+- **Mocked suite (44 tests).** Covers the chat flow, the opening greeting, recalled and new memory chips, forgetting,
   pinning, the "Always in mind" group, tidy-up undo, email and face sign-in (with Chrome's
   virtual authenticator), limits, the phone drawer, specific microphone errors, a full
   hands-free voice turn against a mocked Scribe socket, and axe WCAG 2.2 A/AA scans with no
